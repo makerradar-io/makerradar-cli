@@ -41,3 +41,8 @@ npm version <patch|minor|major>   # bumps package.json, commits, tags
 npm publish                       # as the makerradar npm org
 git push --follow-tags
 ```
+
+Or through a pull request: bump `version` in `package.json` and turn the CHANGELOG's
+`## Unreleased` into the new version; once it's merged, from an up-to-date `main`:
+`npm test && npm publish` (add `--otp=<code>` for 2FA), then `git tag vX.Y.Z && git push origin vX.Y.Z`.
+Don't also run `npm version` then: it would bump a second time.

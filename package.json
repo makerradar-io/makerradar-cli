@@ -1,6 +1,6 @@
 {
   "name": "makerradar",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Official MakerRadar CLI: search the launch directory and manage your listings from the terminal.",
   "keywords": [
     "makerradar",
