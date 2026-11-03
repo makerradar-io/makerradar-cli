@@ -4,8 +4,26 @@ import { OPERATIONS } from "./operations.js";
 /** Production. Override with `--api-url` or `MAKERRADAR_API_URL` (e.g. staging). */
 export const DEFAULT_API_URL = "https://api.makerradar.io/v1";
 
-/** How long one request may take before it's abandoned. */
+/** How long one request may take, body included, before it's abandoned. */
 const TIMEOUT_MS = 30_000;
+
+/** Hosts a token may reach over plain http: this machine only (a local API in development). */
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+
+/**
+ * Whether a token may be sent to this API: over https, or plain http to this machine only. Anything
+ * else would put the token on the wire in the clear.
+ */
+export function tokenSafeUrl(/** @type {string} */ apiUrl) {
+  let url;
+  try {
+    url = new URL(apiUrl);
+  } catch {
+    return false;
+  }
+  if (url.protocol === "https:") return true;
+  return url.protocol === "http:" && (LOOPBACK.has(url.hostname) || url.hostname.endsWith(".localhost"));
+}
 
 /**
  * A failed API call: the API's own error (`{ error, message, hint, docs }`), or a network failure
@@ -48,6 +66,10 @@ export class ApiError extends Error {
 export function createClient(/** @type {ClientOptions} */ opts) {
   const apiUrl = (opts.apiUrl || DEFAULT_API_URL).replace(/\/+$/, "");
   const doFetch = opts.fetch ?? globalThis.fetch;
+  // The caller drops a token it mustn't send; this is the last line, should one slip through.
+  if (opts.token && !tokenSafeUrl(apiUrl)) {
+    throw new Error(`Refusing to send a token over plain http to ${new URL(apiUrl).host}.`);
+  }
 
   /**
    * @param {string} method
@@ -78,7 +100,14 @@ export function createClient(/** @type {ClientOptions} */ opts) {
       const reason = err instanceof Error ? err.message : String(err);
       throw new ApiError(0, null, `Couldn't reach ${new URL(apiUrl).host}: ${reason}`);
     }
-    const text = await res.text();
+    let text;
+    try {
+      // The timeout covers the body too: a stalled answer is abandoned, not waited on forever.
+      text = await res.text();
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      throw new ApiError(0, null, `${new URL(apiUrl).host} stopped answering: ${reason}`);
+    }
     /** @type {any} */
     let parsed = null;
     if (text) {

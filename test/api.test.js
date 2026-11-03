@@ -1,7 +1,7 @@
 // @ts-check
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ApiError, createClient, DEFAULT_API_URL } from "../src/api.js";
+import { ApiError, createClient, DEFAULT_API_URL, tokenSafeUrl } from "../src/api.js";
 import { OPERATIONS } from "../src/operations.js";
 import { fakeApi } from "./helpers.js";
 
@@ -78,5 +78,39 @@ describe("the API client", () => {
       assert.match(op.method, /^(GET|POST|PUT|PATCH|DELETE)$/, id);
       assert.match(op.path, /^\//, id);
     }
+  });
+
+  it("treats an answer that stops mid-body as unreachable, not a crash", async () => {
+    /** @type {typeof fetch} */
+    const fetch = async () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('{"data":'));
+            controller.error(new Error("socket hang up"));
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    const err = await createClient({ fetch, userAgent: "test" })
+      .call("listProducts")
+      .catch((e) => e);
+    assert.ok(err instanceof ApiError);
+    assert.equal(err.status, 0);
+    assert.equal(err.code, "network");
+    assert.match(err.message, /stopped answering/);
+  });
+
+  it("refuses to hold a token for a plain-http API that isn't this machine", () => {
+    assert.throws(
+      () => createClient({ apiUrl: "http://api.example.test/v1", token: "mr_x", userAgent: "test" }),
+      /plain http/,
+    );
+    assert.ok(createClient({ apiUrl: "http://localhost:5281/v1", token: "mr_x", userAgent: "test" }));
+    assert.ok(createClient({ apiUrl: "http://api.example.test/v1", userAgent: "test" }));
+    assert.equal(tokenSafeUrl("https://api.makerradar.io/v1"), true);
+    assert.equal(tokenSafeUrl("http://dev.localhost:5281/v1"), true);
+    assert.equal(tokenSafeUrl("http://localhost.evil.test/v1"), false);
+    assert.equal(tokenSafeUrl("ftp://api.makerradar.io"), false);
   });
 });

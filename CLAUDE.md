@@ -18,7 +18,9 @@ lives in a private monorepo. This CLI is an ordinary client of the **public, ver
 - **Stable for agents:** `--json` = the API's own JSON on stdout; errors on stderr (JSON with
   `--json`); exit 0 done · 1 the API refused or was unreachable · 2 a usage mistake, which never
   calls the API.
-- **The token is never printed** and lives only in the config file (0600) or `MAKERRADAR_TOKEN`.
+- **The token is never printed** and lives only in the config file (0600, written atomically) or
+  `MAKERRADAR_TOKEN`. It goes out only over https (plain http to localhost alone: `tokenSafeUrl`),
+  and `MAKERRADAR_TOKEN` only to the API the environment names, never to a different `--api-url`.
   The CLI never asks for a password and never pays: checkouts hand the person a payment page.
 - Paid placements are disclosed (`tierLabel`: "Featured · paid"). Maker descriptions are labelled
   "written by the maker, unverified".

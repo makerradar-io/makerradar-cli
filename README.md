@@ -76,8 +76,17 @@ in to MakerRadar, check the code and approve. The CLI then gets an **agent token
 agents**.
 
 The token is saved to `~/.config/makerradar/config.json` (`%APPDATA%\makerradar\config.json` on
-Windows), readable only by you. Tokens are kept per API URL, so a staging login never stands in
-for production. In CI or for an agent, pass a token with `MAKERRADAR_TOKEN` instead.
+Windows), readable only by you, and written atomically, so a crash never leaves half a file. Tokens
+are kept per API URL, so a staging login never stands in for production. In CI or for an agent,
+pass a token with `MAKERRADAR_TOKEN` instead.
+
+Where a token goes:
+
+- `MAKERRADAR_TOKEN` is sent only to the API the environment names (`MAKERRADAR_API_URL`, or
+  production). An `--api-url` pointing anywhere else doesn't get it; pass `--token` for that API.
+- A token is never sent over plain `http`, except to this machine (`localhost`, `127.0.0.1`,
+  `[::1]`). `login` needs https for the same reason.
+- An empty or blank variable counts as unset.
 
 ## For scripts and AI agents
 
@@ -95,7 +104,7 @@ for production. In CI or for an agent, pass a token with `MAKERRADAR_TOKEN` inst
 | Variable | Default | |
 | --- | --- | --- |
 | `MAKERRADAR_API_URL` | `https://api.makerradar.io/v1` | The API to use (`--api-url`) |
-| `MAKERRADAR_TOKEN` | | An agent token (`--token`); otherwise the one `login` saved |
+| `MAKERRADAR_TOKEN` | | An agent token (`--token`) for the API above only; otherwise the one `login` saved |
 | `MAKERRADAR_CONFIG` | `~/.config/makerradar/config.json` | Where `login` saves the token |
 | `NO_COLOR` | | Plain output ([no-color.org](https://no-color.org)) |
 

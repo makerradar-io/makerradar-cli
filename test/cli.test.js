@@ -1,6 +1,7 @@
 // @ts-check
 import assert from "node:assert/strict";
-import { stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
+import { dirname } from "node:path";
 import { describe, it } from "node:test";
 import { isoWeekYear, slugFrom, weekSlug } from "../src/commands.js";
 import { fakeApi, PRODUCT, run, tempConfig } from "./helpers.js";
@@ -244,6 +245,107 @@ describe("the account", () => {
       api.calls.map((c) => c.headers.get("authorization")),
       ["Bearer mr_flag", "Bearer mr_env"],
     );
+  });
+
+  it("keeps an exported MAKERRADAR_TOKEN to the API the environment names", async () => {
+    const api = accountApi();
+    const env = { MAKERRADAR_TOKEN: "mr_env" };
+    // --api-url elsewhere (a typo, a copied command, someone else's server): not sent, and said so.
+    const elsewhere = await run(["whoami", "--api-url", "https://api.evil.test/v1"], { ...api, env });
+    assert.equal(elsewhere.code, 2);
+    assert.match(elsewhere.stderr, /MAKERRADAR_TOKEN is for https:\/\/api\.makerradar\.io, so it isn't sent to https:\/\/api\.evil\.test/);
+    assert.equal(api.calls.length, 0);
+    // A public command there goes out without it.
+    await run(["search", "--api-url", "https://api.evil.test/v1"], { ...api, env });
+    assert.equal(api.calls.at(-1)?.headers.get("authorization"), null);
+    // The environment's own API (another path on it included) gets it; --token is always explicit.
+    await run(["whoami", "--api-url", "https://api.makerradar.io/v1/"], { ...api, env });
+    assert.equal(api.calls.at(-1)?.headers.get("authorization"), "Bearer mr_env");
+    const staging = { MAKERRADAR_TOKEN: "mr_env", MAKERRADAR_API_URL: "https://api.staging.test/v1" };
+    await run(["whoami"], { ...api, env: staging });
+    assert.equal(api.calls.at(-1)?.url.host, "api.staging.test");
+    assert.equal(api.calls.at(-1)?.headers.get("authorization"), "Bearer mr_env");
+    await run(["whoami", "--api-url", "https://api.evil.test/v1", "--token", "mr_flag"], { ...api, env });
+    assert.equal(api.calls.at(-1)?.headers.get("authorization"), "Bearer mr_flag");
+  });
+
+  it("never sends a token over plain http, except to this machine", async () => {
+    const api = accountApi();
+    const r = await run(["whoami", "--api-url", "http://api.example.test/v1", "--token", "mr_flag"], api);
+    assert.equal(r.code, 2);
+    assert.match(r.stderr, /Not sending your token over plain http to api\.example\.test/);
+    assert.equal(api.calls.length, 0);
+    // Nor through `api`: the call goes out bare, and the 401 says why.
+    const bare = await run(["api", "GET", "/me", "--api-url", "http://api.example.test/v1", "--token", "mr_flag"], api);
+    assert.equal(api.calls.at(-1)?.headers.get("authorization"), null);
+    assert.match(bare.stderr, /plain http/);
+    // Logging in over plain http would put the device code and the new token on the wire.
+    const login = await run(["login", "--api-url", "http://api.example.test/v1"], api);
+    assert.equal(login.code, 2);
+    assert.match(login.stderr, /Logging in needs https/);
+    // A local API in development is fine.
+    for (const local of ["http://localhost:5281/v1", "http://127.0.0.1:5281/v1", "http://[::1]:5281/v1"]) {
+      await run(["whoami", "--api-url", local, "--token", "mr_flag"], api);
+      assert.equal(api.calls.at(-1)?.headers.get("authorization"), "Bearer mr_flag", local);
+    }
+  });
+
+  it("treats an empty or blank variable as unset", async () => {
+    const api = accountApi();
+    const r = await run(["whoami"], { ...api, env: { MAKERRADAR_TOKEN: "  ", MAKERRADAR_API_URL: "" } });
+    assert.equal(r.code, 2);
+    assert.match(r.stderr, /makerradar login/);
+    assert.equal(api.calls.length, 0);
+    await run(["search"], { ...api, env: { MAKERRADAR_API_URL: " " } });
+    assert.equal(api.calls.at(-1)?.url.host, "api.makerradar.io");
+  });
+
+  it("keeps a login going when the API is busy or a connection drops", async () => {
+    let starts = 0;
+    let polls = 0;
+    const api = fakeApi({
+      "POST /agent/connect": () =>
+        ++starts === 1
+          ? { status: 503, body: { error: "unavailable", message: "Busy", hint: "", docs: "" } }
+          : {
+              body: {
+                data: {
+                  deviceCode: "dev_1",
+                  userCode: "ABCD-EFGH",
+                  verificationUri: "https://makerradar.io/connect",
+                  verificationUriComplete: "https://makerradar.io/connect?code=ABCD-EFGH",
+                  expiresIn: 600,
+                  interval: 5,
+                },
+              },
+            },
+      "POST /agent/token": () => {
+        polls++;
+        if (polls === 1) return { status: 502, body: { error: "unavailable", message: "Bad gateway", hint: "", docs: "" } };
+        if (polls === 2) throw new TypeError("fetch failed");
+        return { body: { data: approved } };
+      },
+      "GET /me": () => ({ body: { data: { handle: "dana", dashboardUrl: null } } }),
+    });
+    const config = await tempConfig();
+    const r = await run(["login"], { ...api, config });
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(starts, 2);
+    assert.equal(polls, 3);
+    assert.match(r.stderr, /The API is busy; trying again/);
+    assert.match(r.stdout, /Connected as @dana/);
+    // A refusal still ends it at once.
+    const refused = accountApi([{ status: "denied", message: "No" }]);
+    assert.equal((await run(["login"], refused)).code, 2);
+  });
+
+  it("writes the config atomically: nothing left beside it, still for its owner only", async () => {
+    const config = await tempConfig();
+    await run(["login"], { ...accountApi(), config });
+    await run(["login"], { ...accountApi(), config });
+    assert.deepEqual(await readdir(dirname(config)), ["config.json"]);
+    if (process.platform !== "win32") assert.equal((await stat(config)).mode & 0o777, 0o600);
+    assert.equal(JSON.parse(await readFile(config, "utf8")).tokens["https://api.makerradar.io/v1"].token, "mr_live_secret");
   });
 
   it("says how to sign in when an account command has no token", async () => {
