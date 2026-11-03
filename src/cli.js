@@ -2,9 +2,9 @@
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
-import { ApiError, createClient, DEFAULT_API_URL } from "./api.js";
+import { ApiError, createClient, DEFAULT_API_URL, tokenSafeUrl } from "./api.js";
 import { COMMANDS, UsageError } from "./commands.js";
-import { configPath, savedToken } from "./config.js";
+import { configPath, envValue, savedToken } from "./config.js";
 import { clean, styles } from "./format.js";
 
 export const VERSION = JSON.parse(
@@ -152,30 +152,51 @@ export async function main(argv, io) {
     return 2;
   }
 
-  const apiUrl = (flags["api-url"] || io.env.MAKERRADAR_API_URL || DEFAULT_API_URL).replace(/\/+$/, "");
-  try {
-    new URL(apiUrl);
-  } catch {
-    err(`${es.red("Error:")} --api-url isn't a URL: ${clean(apiUrl)}`);
-    return 2;
+  // The API the environment names: MAKERRADAR_TOKEN belongs to it, and only to it.
+  const envApiUrl = (envValue(io.env, "MAKERRADAR_API_URL") || DEFAULT_API_URL).replace(/\/+$/, "");
+  const apiUrl = (flags["api-url"]?.trim() || envApiUrl).replace(/\/+$/, "");
+  for (const [label, url] of [
+    ["--api-url", apiUrl],
+    ["MAKERRADAR_API_URL", envApiUrl],
+  ]) {
+    try {
+      new URL(url);
+    } catch {
+      err(`${es.red("Error:")} ${label} isn't a URL: ${clean(url)}`);
+      return 2;
+    }
   }
+  const origin = (/** @type {string} */ url) => new URL(url).origin;
   const configFile = configPath(io.env);
   /** @type {"flag" | "env" | "saved" | null} */
   let tokenSource = null;
   /** @type {string | null} */
   let token = null;
-  if (flags.token) {
-    token = flags.token;
+  /** Why a token that was there isn't being sent (said when a command needs one). */
+  let tokenNote = /** @type {string | null} */ (null);
+  const envToken = envValue(io.env, "MAKERRADAR_TOKEN");
+  if (flags.token?.trim()) {
+    token = flags.token.trim();
     tokenSource = "flag";
-  } else if (io.env.MAKERRADAR_TOKEN) {
-    token = io.env.MAKERRADAR_TOKEN;
+  } else if (envToken && origin(envApiUrl) === origin(apiUrl)) {
+    token = envToken;
     tokenSource = "env";
   } else {
+    if (envToken) {
+      // An exported token is for the API the environment names; --api-url pointing elsewhere (a
+      // typo, a copied command, someone else's server) must not receive it.
+      tokenNote = `MAKERRADAR_TOKEN is for ${origin(envApiUrl)}, so it isn't sent to ${origin(apiUrl)}. Pass --token for that API, or log in to it.`;
+    }
     const saved = await savedToken(configFile, apiUrl);
     if (saved?.token) {
       token = saved.token;
       tokenSource = "saved";
     }
+  }
+  if (token && !tokenSafeUrl(apiUrl)) {
+    tokenNote = `Not sending your token over plain http to ${new URL(apiUrl).host}: use an https API URL (plain http is only for localhost).`;
+    token = null;
+    tokenSource = null;
   }
   const clientFor = (/** @type {string | null} */ t) =>
     createClient({ apiUrl, token: t, fetch: io.fetch, userAgent: USER_AGENT });
@@ -189,6 +210,7 @@ export async function main(argv, io) {
     json: Boolean(flags.json),
     configFile,
     tokenSource,
+    tokenNote,
     sleep: io.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
     now: io.now ?? (() => new Date()),
     readStdin: io.readStdin ?? readAllStdin,
@@ -213,6 +235,7 @@ export async function main(argv, io) {
         if (e.code === "unauthorized" && ctx.tokenSource === "saved") {
           err("  Your saved token no longer works: run `makerradar login` again.");
         }
+        if (e.code === "unauthorized" && ctx.tokenNote) err(`  ${ctx.tokenNote}`);
         if (e.docs) err(es.dim(`  Docs: ${clean(e.docs)}`));
       }
       return 1;

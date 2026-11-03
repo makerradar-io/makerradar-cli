@@ -1,5 +1,5 @@
 // @ts-check
-import { ApiError } from "./api.js";
+import { ApiError, tokenSafeUrl } from "./api.js";
 import { forgetToken, saveToken, savedToken } from "./config.js";
 import { clean, pricingLabel, table, tierLabel, truncate } from "./format.js";
 import { SCOPES } from "./operations.js";
@@ -22,6 +22,7 @@ export class UsageError extends Error {
  * @property {boolean} json
  * @property {string} configFile
  * @property {"flag" | "env" | "saved" | null} tokenSource
+ * @property {string | null} tokenNote Why a token that was there isn't being sent, if one wasn't.
  * @property {(ms: number) => Promise<void>} sleep
  * @property {() => Date} now
  * @property {() => Promise<string>} readStdin
@@ -85,10 +86,19 @@ export function weekSlug(/** @type {string} */ input, /** @type {Date} */ now) {
 function requireToken(/** @type {Context} */ ctx, /** @type {string} */ name) {
   if (!ctx.tokenSource) {
     throw new UsageError(
-      `${name} acts for your account: run \`makerradar login\` first (or pass --token / set MAKERRADAR_TOKEN).`,
+      ctx.tokenNote ??
+        `${name} acts for your account: run \`makerradar login\` first (or pass --token / set MAKERRADAR_TOKEN).`,
       name,
     );
   }
+}
+
+/** How many times a busy API is asked again before giving up (login's first step). */
+const BUSY_RETRIES = 3;
+
+/** The API is busy or out of reach for a moment (worth asking again), not saying no. */
+function isBusy(/** @type {unknown} */ err) {
+  return err instanceof ApiError && (err.status === 0 || err.status === 429 || err.status >= 500);
 }
 
 function productLines(
@@ -336,14 +346,32 @@ export const COMMANDS = [
       const scopes = /** @type {string[] | undefined} */ (flags.scope);
       for (const scope of scopes ?? []) {
         if (!SCOPES.includes(/** @type {any} */ (scope))) {
-          throw new UsageError(`Unknown scope "${scope}": one of ${SCOPES.join(", ")}.`, "login");
+          throw new UsageError(`Unknown scope "${clean(scope)}": one of ${SCOPES.join(", ")}.`, "login");
         }
       }
-      const started = (
-        await ctx.client.call("startAgentConnect", {
-          body: { client: flags.client || "MakerRadar CLI", ...(scopes?.length ? { scopes } : {}) },
-        })
-      ).data;
+      // The device code and the token it brings back would cross the wire in the clear.
+      if (!tokenSafeUrl(ctx.client.apiUrl)) {
+        throw new UsageError(
+          `Logging in needs https: ${clean(new URL(ctx.client.apiUrl).host)} is plain http (only localhost may be).`,
+          "login",
+        );
+      }
+      let started;
+      for (let attempt = 0; ; attempt++) {
+        try {
+          started = (
+            await ctx.client.call("startAgentConnect", {
+              body: { client: flags.client || "MakerRadar CLI", ...(scopes?.length ? { scopes } : {}) },
+            })
+          ).data;
+          break;
+        } catch (err) {
+          if (!isBusy(err) || attempt >= BUSY_RETRIES) throw err;
+          const wait = /** @type {ApiError} */ (err).retryAfter ?? 2 ** attempt * 2;
+          ctx.err(ctx.s.dim(`The API is busy; trying again in ${wait}s…`));
+          await ctx.sleep(wait * 1000);
+        }
+      }
       const { s } = ctx;
       ctx.err(`Open this page, sign in and approve ${clean(flags.client || "MakerRadar CLI")}:`);
       ctx.err(`  ${s.cyan(clean(started.verificationUriComplete))}`);
@@ -360,6 +388,12 @@ export const COMMANDS = [
         } catch (err) {
           if (err instanceof ApiError && err.code === "rate_limited") {
             interval = Math.max(interval + 5, err.retryAfter ?? 0);
+            continue;
+          }
+          // Busy or a dropped connection while you approve: keep waiting (slower), until the code
+          // expires — losing a login you already approved over one bad answer is worse.
+          if (isBusy(err)) {
+            interval = Math.min(Math.max(interval * 2, /** @type {ApiError} */ (err).retryAfter ?? 0), 60);
             continue;
           }
           throw err;

@@ -1,7 +1,19 @@
 // @ts-check
-import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
+import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+
+/**
+ * An environment variable's value, or undefined when it's unset, empty or only spaces — so
+ * `MAKERRADAR_TOKEN=` in a CI file means "no token", not a token of "".
+ * @param {Record<string, string | undefined>} env
+ * @param {string} name
+ */
+export function envValue(env, name) {
+  const value = env[name]?.trim();
+  return value ? value : undefined;
+}
 
 /**
  * Where the CLI keeps the agent token a person approved: one small JSON file, readable by its owner
@@ -13,11 +25,12 @@ import { dirname, join } from "node:path";
  * @param {NodeJS.Platform} [platform]
  */
 export function configPath(env, platform = process.platform) {
-  if (env.MAKERRADAR_CONFIG) return env.MAKERRADAR_CONFIG;
+  const named = envValue(env, "MAKERRADAR_CONFIG");
+  if (named) return named;
   const base =
     platform === "win32"
-      ? env.APPDATA || join(homedir(), "AppData", "Roaming")
-      : env.XDG_CONFIG_HOME || join(homedir(), ".config");
+      ? envValue(env, "APPDATA") || join(homedir(), "AppData", "Roaming")
+      : envValue(env, "XDG_CONFIG_HOME") || join(homedir(), ".config");
   return join(base, "makerradar", "config.json");
 }
 
@@ -42,12 +55,22 @@ export async function readConfig(/** @type {string} */ path) {
   }
 }
 
-/** Write the config for its owner's eyes only. */
+/**
+ * Write the config for its owner's eyes only, atomically: the new file is written beside the old one
+ * (created 0600, so the token is never readable by others even for a moment) and renamed over it. A
+ * crash or a full disk mid-write leaves the old config, never half a file.
+ */
 export async function writeConfig(/** @type {string} */ path, /** @type {Config} */ config) {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  await writeFile(path, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
-  // An existing file keeps its old mode through writeFile: tighten it either way.
-  await chmod(path, 0o600).catch(() => {});
+  const temp = `${path}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
+  try {
+    await writeFile(temp, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600, flag: "wx" });
+    await chmod(temp, 0o600).catch(() => {});
+    await rename(temp, path);
+  } catch (err) {
+    await rm(temp, { force: true }).catch(() => {});
+    throw err;
+  }
 }
 
 /** The saved token for this API, or null. */
