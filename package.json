@@ -1,0 +1,47 @@
+{
+  "name": "makerradar",
+  "version": "0.1.0",
+  "description": "Official MakerRadar CLI: search the launch directory and manage your listings from the terminal.",
+  "keywords": [
+    "makerradar",
+    "cli",
+    "launch platform",
+    "product launch",
+    "product directory",
+    "mcp",
+    "ai agents"
+  ],
+  "homepage": "https://makerradar.io/cli",
+  "bugs": "https://github.com/makerradar-io/makerradar-cli/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/makerradar-io/makerradar-cli.git"
+  },
+  "license": "MIT",
+  "author": "MakerRadar (https://makerradar.io)",
+  "type": "module",
+  "bin": {
+    "makerradar": "bin/makerradar.js"
+  },
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test",
+    "test:contract": "MAKERRADAR_CONTRACT=1 node --test test/contract.test.js",
+    "prepublishOnly": "npm test"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
