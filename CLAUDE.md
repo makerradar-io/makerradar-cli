@@ -39,8 +39,10 @@ The server runs remotely (private monorepo); this repo represents it everywhere 
 repository: `server.json` is the MCP Registry entry (`io.makerradar/mcp` — both remotes, plus this
 package as the stdio option, `makerradar mcp serve`), `glama.json` names the maintainers, and
 `package.json`'s `mcpName` must equal `server.json`'s `name` (the registry checks the published
-package for it). `test/server-json.test.js` holds them together; `npm version` runs
-`scripts/sync-server-json.mjs` so the package version in `server.json` follows. The bridge
+package for it). The repo is also an Agent Plugin (agent-plugins.org): `plugin.json`, `mcp.json` (both remotes,
+`streamable-http`) and `skills/makerradar/SKILL.md` — a change to a server URL or a tool's role goes
+in all of them. `test/server-json.test.js` holds them together; `npm version` runs
+`scripts/sync-server-json.mjs` so the versions in `server.json` and `plugin.json` follow. The bridge
 (`src/mcp-bridge.js`) interprets nothing: stdio in, the server's own answers out.
 
 ## Releasing

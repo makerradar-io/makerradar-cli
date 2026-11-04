@@ -125,6 +125,10 @@ also: `get_my_account`, `list_my_listings`, `get_my_listing`, `submit_listing`, 
 `set_listing_cover`, `get_launch_options`, `choose_launch`, `start_ownership_check`,
 `verify_ownership`, `get_badge_snippet`, `start_checkout`, `list_my_orders`.
 
+**As a plugin.** The repository is also an [Agent Plugin](https://agent-plugins.org): `plugin.json`,
+`mcp.json` (both servers) and `skills/makerradar/SKILL.md` (when and how an agent should use
+MakerRadar). A plugin-aware client, or the Cursor directory, installs it straight from this repo.
+
 Found it in a directory? Listings on the [MCP Registry](https://registry.modelcontextprotocol.io),
 Glama, the Claude and ChatGPT directories and friends all point here. A listing that says something
 this README doesn't is stale: [open an issue](https://github.com/makerradar-io/makerradar-cli/issues).

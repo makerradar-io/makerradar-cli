@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- The repository is an Agent Plugin (agent-plugins.org 1.0.0): `plugin.json`, `mcp.json` naming
+  both servers, and `skills/makerradar/SKILL.md`, so plugin clients and the Cursor directory can
+  install it from the repo. `npm version` keeps `plugin.json`'s version in step.
+
 ## 0.2.0
 
 The repository becomes the public home of MakerRadar's MCP server.

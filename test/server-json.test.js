@@ -42,3 +42,28 @@ describe("server.json (the MCP Registry entry)", () => {
     assert.equal(server.icons[0].src, "https://makerradar.io/icons/icon-512.png");
   });
 });
+
+/**
+ * The repo is also an Agent Plugin (agent-plugins.org; what the Cursor directory scans): the
+ * manifest, `mcp.json` and the skill must say what `server.json` says.
+ */
+describe("the Agent Plugin (plugin.json, mcp.json, skills/)", () => {
+  it("names the same servers and version", async () => {
+    const read = async (/** @type {string} */ f) => JSON.parse(await readFile(new URL(`../${f}`, import.meta.url), "utf8"));
+    const [server, pkg, plugin, mcp] = await Promise.all(["server.json", "package.json", "plugin.json", "mcp.json"].map(read));
+    assert.equal(plugin.$schema, "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json");
+    assert.match(plugin.name, /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/);
+    assert.equal(plugin.version, pkg.version, "run `npm run sync:server-json` after a version bump");
+    assert.equal(plugin.repository, server.repository.url);
+    assert.equal(mcp.$schema, "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json");
+    assert.deepEqual(Object.keys(mcp), ["$schema", "mcpServers"]);
+    assert.deepEqual(
+      Object.values(mcp.mcpServers).map((/** @type {any} */ s) => [s.type, s.url]),
+      server.remotes.map((/** @type {any} */ r) => [r.type, r.url]),
+    );
+    const skill = await readFile(new URL("../skills/makerradar/SKILL.md", import.meta.url), "utf8");
+    assert.match(skill, /^---\nname: makerradar\ndescription: .+\n---\n/);
+    for (const url of server.remotes.map((/** @type {any} */ r) => r.url)) assert.ok(skill.includes(url), `skill names ${url}`);
+  });
+});
+
