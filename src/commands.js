@@ -2,6 +2,7 @@
 import { ApiError, tokenSafeUrl } from "./api.js";
 import { forgetToken, saveToken, savedToken } from "./config.js";
 import { clean, pricingLabel, table, tierLabel, truncate } from "./format.js";
+import { runBridge } from "./mcp-bridge.js";
 import { SCOPES } from "./operations.js";
 
 /** A mistake in how the command was called (exit code 2). */
@@ -26,8 +27,12 @@ export class UsageError extends Error {
  * @property {(ms: number) => Promise<void>} sleep
  * @property {() => Date} now
  * @property {() => Promise<string>} readStdin
+ * @property {AsyncIterable<string | Uint8Array>} stdin Streamed stdin (`mcp serve`).
  * @property {(path: string) => Promise<string>} readFile
  * @property {(token: string) => import("./api.js").Client} withToken A client for a new token.
+ * @property {string | null} token The token in use (the one `client` sends), if any.
+ * @property {typeof fetch} [fetch]
+ * @property {string} userAgent
  */
 
 /**
@@ -521,20 +526,43 @@ export const COMMANDS = [
   },
   {
     name: "mcp",
-    args: "[client]",
+    args: "[client | serve]",
     group: "Agents & developers",
     summary: "Connect an AI assistant to MakerRadar's MCP server",
-    examples: ["makerradar mcp", "makerradar mcp claude-code", "makerradar mcp cursor"],
+    options: ["account"],
+    examples: [
+      "makerradar mcp",
+      "makerradar mcp claude-code",
+      "makerradar mcp cursor",
+      "makerradar mcp serve",
+      "makerradar login && makerradar mcp serve --account",
+    ],
     details:
-      "Clients: claude-code, claude-desktop, cursor, vscode, windsurf. The public server needs no account; the account server signs you in (OAuth) the first time your assistant uses it.",
-    async run(ctx, args) {
+      "Clients: claude-code, claude-desktop, cursor, vscode, windsurf, stdio. The public server needs no account; the account server signs you in (OAuth) the first time your assistant uses it.\n\n`mcp serve` runs the server over stdio for a client that can only start a local command: it relays each message to the remote server and prints every answer, nothing else. `--account` serves /mcp/account with your token (from `login`, --token or MAKERRADAR_TOKEN), so the assistant can manage your listings.",
+    async run(ctx, args, flags) {
       const origin = new URL(ctx.client.apiUrl).origin;
       const publicUrl = `${origin}/mcp`;
       const accountUrl = `${origin}/mcp/account`;
+      if (args[0]?.toLowerCase() === "serve") {
+        if (args.length > 1) throw new UsageError("`mcp serve` takes no client: it serves stdio.", "mcp");
+        if (flags.account) requireToken(ctx, "mcp serve --account");
+        const code = await runBridge({
+          url: flags.account ? accountUrl : publicUrl,
+          token: flags.account ? ctx.token : null,
+          userAgent: ctx.userAgent,
+          stdin: ctx.stdin,
+          stdout: { write: (chunk) => ctx.out(chunk.replace(/\n$/, "")) },
+          log: (line) => ctx.err(line),
+          fetch: ctx.fetch,
+        });
+        if (code !== 0) throw new UsageError(`Not a URL: ${clean(publicUrl)}`, "mcp");
+        return;
+      }
+      if (flags.account) throw new UsageError("--account goes with `mcp serve`.", "mcp");
       const snippets = mcpSnippets(publicUrl, accountUrl);
       const wanted = args[0]?.toLowerCase();
       if (wanted && !(wanted in snippets)) {
-        throw new UsageError(`Unknown client "${args[0]}": one of ${Object.keys(snippets).join(", ")}.`, "mcp");
+        throw new UsageError(`Unknown client "${args[0]}": one of ${Object.keys(snippets).join(", ")}, or serve.`, "mcp");
       }
       if (ctx.json) return printJson(ctx, { public: publicUrl, account: accountUrl, clients: snippets });
       const { s } = ctx;
@@ -610,6 +638,19 @@ export function mcpSnippets(/** @type {string} */ publicUrl, /** @type {string} 
     windsurf: {
       title: "Windsurf (~/.codeium/windsurf/mcp_config.json)",
       text: json({ mcpServers: { makerradar: { serverUrl: publicUrl }, "makerradar-account": { serverUrl: accountUrl } } }),
+    },
+    stdio: {
+      title: "Any client that only starts a local command (stdio, via npx)",
+      text: json({
+        mcpServers: {
+          makerradar: { command: "npx", args: ["-y", "makerradar", "mcp", "serve"] },
+          "makerradar-account": {
+            command: "npx",
+            args: ["-y", "makerradar", "mcp", "serve", "--account"],
+            env: { MAKERRADAR_TOKEN: "mr_… (from `makerradar login`, or leave it to the saved one)" },
+          },
+        },
+      }),
     },
   };
 }

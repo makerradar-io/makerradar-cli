@@ -1,0 +1,46 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.makerradar/mcp",
+  "title": "MakerRadar",
+  "description": "Search MakerRadar's launched products: details, alternatives, comparisons, weeks.",
+  "version": "1.0.0",
+  "websiteUrl": "https://makerradar.io/mcp",
+  "repository": {
+    "url": "https://github.com/makerradar-io/makerradar-cli",
+    "source": "github"
+  },
+  "icons": [
+    {
+      "src": "https://makerradar.io/icons/icon-512.png",
+      "mimeType": "image/png",
+      "sizes": ["512x512"]
+    }
+  ],
+  "remotes": [
+    { "type": "streamable-http", "url": "https://api.makerradar.io/mcp" },
+    { "type": "streamable-http", "url": "https://api.makerradar.io/mcp/account" }
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "makerradar",
+      "version": "0.2.0",
+      "runtimeHint": "npx",
+      "transport": { "type": "stdio" },
+      "packageArguments": [
+        { "type": "positional", "value": "mcp", "description": "The CLI's MCP command." },
+        { "type": "positional", "value": "serve", "description": "Bridge stdio to the remote server." }
+      ],
+      "environmentVariables": [
+        {
+          "name": "MAKERRADAR_TOKEN",
+          "description": "An agent token (mr_…) from `makerradar login`, only with --account: manage your own listings.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

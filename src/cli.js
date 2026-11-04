@@ -36,6 +36,7 @@ const OPTIONS = /** @type {const} */ ({
   client: { type: "string" },
   scope: { type: "string", multiple: true },
   data: { type: "string" },
+  account: { type: "boolean" },
 });
 const GLOBAL_OPTIONS = new Set(["json", "help", "version", "api-url", "token"]);
 
@@ -48,6 +49,7 @@ const GLOBAL_OPTIONS = new Set(["json", "help", "version", "api-url", "token"]);
  * @property {(ms: number) => Promise<void>} [sleep]
  * @property {() => Date} [now]
  * @property {() => Promise<string>} [readStdin]
+ * @property {AsyncIterable<string | Uint8Array>} [stdin] Streamed stdin (`mcp serve`).
  */
 
 function topHelp(/** @type {import("./format.js").Styles} */ s) {
@@ -214,8 +216,12 @@ export async function main(argv, io) {
     sleep: io.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
     now: io.now ?? (() => new Date()),
     readStdin: io.readStdin ?? readAllStdin,
+    stdin: io.stdin ?? process.stdin,
     readFile: (path) => readFile(path, "utf8"),
     withToken: (t) => clientFor(t),
+    token,
+    fetch: io.fetch,
+    userAgent: USER_AGENT,
   };
 
   try {
