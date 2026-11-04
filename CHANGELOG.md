@@ -12,6 +12,8 @@ The repository becomes the public home of MakerRadar's MCP server.
   stdio option; `npm version` keeps the package version in it in step (`npm run sync:server-json`).
 - `glama.json` (maintainers) and `mcpName` in `package.json` (how the registry checks the package
   is ours); `mcp-server` / `model-context-protocol` npm keywords; badges in the README.
+- A release workflow: a `vX.Y.Z` tag publishes to npm with provenance, then publishes `server.json`
+  to the MCP Registry (secrets `NPM_TOKEN`, `MCP_REGISTRY_PRIVATE_KEY`).
 
 ## 0.1.1
 

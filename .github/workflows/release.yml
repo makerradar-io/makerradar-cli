@@ -1,0 +1,66 @@
+name: Release
+
+# A tag `vX.Y.Z` publishes that version to npm (with provenance) and then the MCP Registry entry
+# (`server.json`) that names it. Run by hand to publish only the registry entry (after a change to
+# server.json that isn't a release).
+#
+# Secrets (Settings › Secrets and variables › Actions):
+#   NPM_TOKEN                 a granular npm token that may publish `makerradar` (bypass 2FA)
+#   MCP_REGISTRY_PRIVATE_KEY  the ed25519 private key (hex) whose public half makerradar.io serves at
+#                             /.well-known/mcp-registry-auth — see CLAUDE.md › Releasing
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # npm provenance
+
+jobs:
+  npm:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: The tag names the version in package.json
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          test "v$version" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} ≠ package.json v$version"; exit 1; }
+      - run: npm test
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  mcp-registry:
+    needs: [npm]
+    if: ${{ !cancelled() && (needs.npm.result == 'success' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Install mcp-publisher
+        run: go install github.com/modelcontextprotocol/registry/cmd/publisher@latest && mv "$(go env GOPATH)/bin/publisher" /usr/local/bin/mcp-publisher
+      - name: Wait until npm serves the package version server.json names
+        run: |
+          version="$(node -p "require('./server.json').packages.find(p => p.registryType === 'npm').version")"
+          for i in $(seq 1 24); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/makerradar/$version")"
+            [ "$code" = "200" ] && exit 0
+            echo "npm answers $code for makerradar@$version; waiting ($i/24)"; sleep 5
+          done
+          echo "makerradar@$version isn't on npm yet: publish it first"; exit 1
+      - run: mcp-publisher validate
+      - name: Prove the domain and publish
+        run: |
+          mcp-publisher login http --domain makerradar.io --private-key "$MCP_REGISTRY_PRIVATE_KEY"
+          mcp-publisher publish
+        env:
+          MCP_REGISTRY_PRIVATE_KEY: ${{ secrets.MCP_REGISTRY_PRIVATE_KEY }}

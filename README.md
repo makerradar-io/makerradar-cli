@@ -190,7 +190,8 @@ npm run sync:server-json # after a version bump: server.json names the package a
 
 `server.json` is the MCP Registry entry (`mcp-publisher publish` sends it; `npm version` keeps its
 package version in step), `glama.json` names the maintainers for Glama's index, and `mcpName` in
-`package.json` is how the registry checks the npm package is ours.
+`package.json` is how the registry checks the npm package is ours. Pushing a `vX.Y.Z` tag publishes
+both — npm, then the registry — through [the release workflow](.github/workflows/release.yml).
 
 No dependencies. The CLI calls only MakerRadar's public, versioned API (`/v1`). Every endpoint it
 uses is listed in [`src/operations.js`](src/operations.js), and the contract test checks each one

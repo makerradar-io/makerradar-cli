@@ -45,19 +45,27 @@ package for it). `test/server-json.test.js` holds them together; `npm version` r
 
 ## Releasing
 
+Tagging a version releases it — `.github/workflows/release.yml` publishes to npm (with provenance)
+and then publishes `server.json` to the MCP Registry. It needs two repository secrets, set once:
+`NPM_TOKEN` (a granular npm token that may publish `makerradar`, bypassing 2FA) and
+`MCP_REGISTRY_PRIVATE_KEY` (the ed25519 private key, 64 hex characters, whose public half
+makerradar.io serves at `/.well-known/mcp-registry-auth` from the product repo's
+`MCP_REGISTRY_PUBLIC_KEY`). Both keys live in the owner's password manager; never in a file here.
+
 ```bash
 npm test && MAKERRADAR_CONTRACT=1 npm run test:contract
-npm version <patch|minor|major>   # bumps package.json, commits, tags
-npm publish                       # as the makerradar npm org
-git push --follow-tags
+npm version <patch|minor|major>   # bumps package.json + server.json, commits, tags
+git push --follow-tags            # the tag starts the release workflow
 ```
 
 Or through a pull request: bump `version` in `package.json`, run `npm run sync:server-json`, and
 turn the CHANGELOG's `## Unreleased` into the new version; once it's merged, from an up-to-date `main`:
-`npm test && npm publish` (add `--otp=<code>` for 2FA), then `git tag vX.Y.Z && git push origin vX.Y.Z`.
-Don't also run `npm version` then: it would bump a second time.
+`git tag vX.Y.Z && git push origin vX.Y.Z`. Don't also run `npm version` then: it would bump a second
+time.
 
-After a release that changes `server.json` (a new package version counts), publish it to the MCP
-Registry from this directory: `mcp-publisher login http --domain makerradar.io --private-key …`
-(the key and `MCP_REGISTRY_PUBLIC_KEY` live with the product repo) then `mcp-publisher publish`.
-The registry validates the npm package's `mcpName`, so publish to npm first.
+By hand, without the workflow: `npm publish` (add `--otp=<code>` for 2FA), then from this directory
+`mcp-publisher login http --domain makerradar.io --private-key <hex>` and `mcp-publisher publish`
+(`go install github.com/modelcontextprotocol/registry/cmd/publisher@latest` installs it). The
+registry validates the npm package's `mcpName`, so npm always comes first. A change to `server.json`
+that isn't a release (a new remote, description or icon) is published by running the workflow by
+hand (Actions › Release › Run workflow), which skips npm.
