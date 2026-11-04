@@ -76,6 +76,9 @@ export async function run(argv, opts) {
     },
     now: () => new Date(clock),
     readStdin: async () => opts.stdin ?? "",
+    stdin: (async function* () {
+      if (opts.stdin) yield opts.stdin;
+    })(),
   });
   return { code, stdout: stdout.text, stderr: stderr.text, config };
 }

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.0
+
+The repository becomes the public home of MakerRadar's MCP server.
+
+- `makerradar mcp serve [--account]`: the MCP server over stdio — a bridge that relays each
+  JSON-RPC message to the remote server (`/mcp`, or `/mcp/account` with your token) and prints every
+  answer, for clients that can only start a local command and for catalogs that list installable
+  servers. `makerradar mcp stdio` prints its config.
+- `server.json`: the MCP Registry entry (`io.makerradar/mcp`) — both remotes and this package as the
+  stdio option; `npm version` keeps the package version in it in step (`npm run sync:server-json`).
+- `glama.json` (maintainers) and `mcpName` in `package.json` (how the registry checks the package
+  is ours); `mcp-server` / `model-context-protocol` npm keywords; badges in the README.
+
 ## 0.1.1
 
 Security and reliability fixes.

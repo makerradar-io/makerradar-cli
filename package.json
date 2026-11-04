@@ -1,6 +1,7 @@
 {
   "name": "makerradar",
-  "version": "0.1.1",
+  "version": "0.2.0",
+  "mcpName": "io.makerradar/mcp",
   "description": "Official MakerRadar CLI: search the launch directory and manage your listings from the terminal.",
   "keywords": [
     "makerradar",
@@ -8,7 +9,10 @@
     "launch platform",
     "product launch",
     "product directory",
+    "startup directory",
     "mcp",
+    "mcp-server",
+    "model-context-protocol",
     "ai agents"
   ],
   "homepage": "https://makerradar.io/cli",
@@ -31,7 +35,8 @@
     "src",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "server.json"
   ],
   "engines": {
     "node": ">=20"
@@ -39,7 +44,9 @@
   "scripts": {
     "test": "node --test",
     "test:contract": "MAKERRADAR_CONTRACT=1 node --test test/contract.test.js",
-    "prepublishOnly": "npm test"
+    "prepublishOnly": "npm test",
+    "sync:server-json": "node scripts/sync-server-json.mjs",
+    "version": "node scripts/sync-server-json.mjs && git add server.json"
   },
   "publishConfig": {
     "access": "public"

@@ -33,6 +33,16 @@ lives in a private monorepo. This CLI is an ordinary client of the **public, ver
 3. Test it in `test/cli.test.js` against `fakeApi` (no network), including `--json` and an error.
 4. Update `README.md` and `CHANGELOG.md`. The site's `/cli` page lists the commands too.
 
+## The MCP server's public home
+
+The server runs remotely (private monorepo); this repo represents it everywhere a listing wants a
+repository: `server.json` is the MCP Registry entry (`io.makerradar/mcp` — both remotes, plus this
+package as the stdio option, `makerradar mcp serve`), `glama.json` names the maintainers, and
+`package.json`'s `mcpName` must equal `server.json`'s `name` (the registry checks the published
+package for it). `test/server-json.test.js` holds them together; `npm version` runs
+`scripts/sync-server-json.mjs` so the package version in `server.json` follows. The bridge
+(`src/mcp-bridge.js`) interprets nothing: stdio in, the server's own answers out.
+
 ## Releasing
 
 ```bash
@@ -42,7 +52,12 @@ npm publish                       # as the makerradar npm org
 git push --follow-tags
 ```
 
-Or through a pull request: bump `version` in `package.json` and turn the CHANGELOG's
-`## Unreleased` into the new version; once it's merged, from an up-to-date `main`:
+Or through a pull request: bump `version` in `package.json`, run `npm run sync:server-json`, and
+turn the CHANGELOG's `## Unreleased` into the new version; once it's merged, from an up-to-date `main`:
 `npm test && npm publish` (add `--otp=<code>` for 2FA), then `git tag vX.Y.Z && git push origin vX.Y.Z`.
 Don't also run `npm version` then: it would bump a second time.
+
+After a release that changes `server.json` (a new package version counts), publish it to the MCP
+Registry from this directory: `mcp-publisher login http --domain makerradar.io --private-key …`
+(the key and `MCP_REGISTRY_PUBLIC_KEY` live with the product repo) then `mcp-publisher publish`.
+The registry validates the npm package's `mcpName`, so publish to npm first.

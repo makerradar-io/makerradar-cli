@@ -1,5 +1,10 @@
 # MakerRadar CLI
 
+[![npm](https://img.shields.io/npm/v/makerradar.svg?label=npm)](https://www.npmjs.com/package/makerradar)
+[![CI](https://github.com/makerradar-io/makerradar-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/makerradar-io/makerradar-cli/actions/workflows/ci.yml)
+[![MCP server](https://img.shields.io/badge/MCP-io.makerradar%2Fmcp-blue)](https://makerradar.io/mcp)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 The official command-line client for [MakerRadar](https://makerradar.io), the launch platform and
 product directory. Search the directory, follow the weekly launch board, draft a listing for your
 product and manage your listings from the terminal, by hand or from a script or an AI agent.
@@ -56,7 +61,8 @@ Or run it without installing: `npx makerradar <command>`.
 
 | Command | What it does |
 | --- | --- |
-| `makerradar mcp [client]` | Connect an AI assistant to MakerRadar's MCP server: `claude-code`, `claude-desktop`, `cursor`, `vscode`, `windsurf` |
+| `makerradar mcp [client]` | Connect an AI assistant to MakerRadar's MCP server: `claude-code`, `claude-desktop`, `cursor`, `vscode`, `windsurf`, `stdio` |
+| `makerradar mcp serve [--account]` | Run the MCP server over stdio for a client that can only start a local command (see below) |
 | `makerradar api <METHOD> <path>` | Call any [public API](https://api.makerradar.io/v1/openapi.json) endpoint and print its JSON. `--data` takes JSON, `@file` or `-` (stdin); your token is sent when you're logged in |
 
 ```bash
@@ -66,7 +72,62 @@ makerradar launches 2026-W45 --json
 makerradar draft https://acme.example --tagline "Invoices in one click"
 makerradar api PATCH /me/listings/prd_123 --data '{"tagline":"Invoices in one click"}'
 makerradar mcp claude-code
+npx -y makerradar mcp serve   # the MCP server over stdio
 ```
+
+## MCP server
+
+MakerRadar's MCP server lets an AI assistant search the directory and, signed in, manage your
+listings. It's remote — nothing to install — and this repository is its public home: the
+[registry entry](server.json) (`io.makerradar/mcp`), the setup for every client, and a stdio bridge.
+
+| Server | URL | Sign-in |
+| --- | --- | --- |
+| Public | `https://api.makerradar.io/mcp` | none — search, products, alternatives, comparisons, categories, launch weeks, `draft_listing` |
+| Account | `https://api.makerradar.io/mcp/account` | OAuth (a "Connect" button), or an agent token — your listings, launches, ownership proof, images, checkout |
+
+Both speak Streamable HTTP (protocol `2025-06-18` and later); the server card is at
+[`/.well-known/mcp/server-card.json`](https://makerradar.io/.well-known/mcp/server-card.json) and the
+docs at [makerradar.io/mcp](https://makerradar.io/mcp). Every tool carries a title and a
+read-only / write annotation. No tool votes, comments or reviews; a checkout hands the person a
+payment page — the agent never pays.
+
+**Set it up in one line.** `makerradar mcp <client>` prints the exact config for your client:
+
+```bash
+npx makerradar mcp claude-code     # runs the two `claude mcp add` commands to copy
+npx makerradar mcp cursor          # ~/.cursor/mcp.json
+npx makerradar mcp vscode          # .vscode/mcp.json
+npx makerradar mcp windsurf        # ~/.codeium/windsurf/mcp_config.json
+npx makerradar mcp claude-desktop  # Settings › Connectors › Add custom connector
+```
+
+**A client that can only start a local command** (or a catalog that lists installable servers)
+runs the bridge instead. It relays each JSON-RPC message to the remote server and prints every
+answer — nothing is interpreted locally:
+
+```json
+{
+  "mcpServers": {
+    "makerradar": { "command": "npx", "args": ["-y", "makerradar", "mcp", "serve"] }
+  }
+}
+```
+
+Add `"--account"` to the arguments (and sign in with `makerradar login`, or set `MAKERRADAR_TOKEN`)
+to serve `/mcp/account` with your token so the assistant can manage your listings.
+
+Tools on the public server: `search_products`, `get_product`, `get_alternatives`,
+`compare_products`, `list_categories`, `list_current_launches`, `get_launch_week`, `top_products`,
+`draft_listing`, `get_pricing`, `connect_account` / `connect_account_finish`. On the account server,
+also: `get_my_account`, `list_my_listings`, `get_my_listing`, `submit_listing`, `update_listing`,
+`get_listing_options`, `set_quick_answers`, `add_listing_image`, `remove_listing_photo`,
+`set_listing_cover`, `get_launch_options`, `choose_launch`, `start_ownership_check`,
+`verify_ownership`, `get_badge_snippet`, `start_checkout`, `list_my_orders`.
+
+Found it in a directory? Listings on the [MCP Registry](https://registry.modelcontextprotocol.io),
+Glama, the Claude and ChatGPT directories and friends all point here. A listing that says something
+this README doesn't is stale: [open an issue](https://github.com/makerradar-io/makerradar-cli/issues).
 
 ## Signing in
 
@@ -124,7 +185,12 @@ const { data } = await mr.call("listProducts", { query: { q: "invoicing", limit:
 ```bash
 npm test                 # unit tests: a fake API, never the network
 npm run test:contract    # every endpoint the CLI calls still exists in the live API description
+npm run sync:server-json # after a version bump: server.json names the package at its new version
 ```
+
+`server.json` is the MCP Registry entry (`mcp-publisher publish` sends it; `npm version` keeps its
+package version in step), `glama.json` names the maintainers for Glama's index, and `mcpName` in
+`package.json` is how the registry checks the npm package is ours.
 
 No dependencies. The CLI calls only MakerRadar's public, versioned API (`/v1`). Every endpoint it
 uses is listed in [`src/operations.js`](src/operations.js), and the contract test checks each one
