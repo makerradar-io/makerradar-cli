@@ -3,6 +3,7 @@
 [![npm](https://img.shields.io/npm/v/makerradar.svg?label=npm)](https://www.npmjs.com/package/makerradar)
 [![CI](https://github.com/makerradar-io/makerradar-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/makerradar-io/makerradar-cli/actions/workflows/ci.yml)
 [![MCP server](https://img.shields.io/badge/MCP-io.makerradar%2Fmcp-blue)](https://makerradar.io/mcp)
+[![MakerRadar MCP connector – tool definition quality and endpoint health on Glama](https://glama.ai/mcp/connectors/io.makerradar.api/maker-radar/badges/score.svg)](https://glama.ai/mcp/connectors/io.makerradar.api/maker-radar)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 The official command-line client for [MakerRadar](https://makerradar.io), the launch platform and
