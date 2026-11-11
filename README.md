@@ -119,15 +119,22 @@ to serve `/mcp/account` with your token so the assistant can manage your listing
 
 Tools on the public server: `search_products`, `get_product`, `get_alternatives`,
 `compare_products`, `list_categories`, `list_current_launches`, `get_launch_week`, `top_products`,
-`draft_listing`, `get_pricing`, `connect_account` / `connect_account_finish`. On the account server,
+`draft_listing`, `get_pricing`, `connect_account` / `connect_account_finish`, and the free site
+checks — `check_page_seo`, `check_ai_visibility`, `check_site_security`, `check_email_dns`,
+`lookup_domain`, `check_tls`, `check_hosting`, `detect_tech` (any public website; the same checks as
+`https://makerradar.io/tools`). On the account server,
 also: `get_my_account`, `list_my_listings`, `get_my_listing`, `submit_listing`, `update_listing`,
 `get_listing_options`, `set_quick_answers`, `add_listing_image`, `remove_listing_photo`,
 `set_listing_cover`, `get_launch_options`, `choose_launch`, `start_ownership_check`,
 `verify_ownership`, `get_badge_snippet`, `start_checkout`, `list_my_orders`.
 
 **As a plugin.** The repository is also an [Agent Plugin](https://agent-plugins.org): `plugin.json`,
-`mcp.json` (both servers) and `skills/makerradar/SKILL.md` (when and how an agent should use
-MakerRadar). A plugin-aware client, or the Cursor directory, installs it straight from this repo.
+`mcp.json` (both servers) and the `skills/` folder — `skills/makerradar/SKILL.md` (when and how an
+agent should use MakerRadar, hand-written) plus one folder per skill the site itself serves at
+`/.well-known/agent-skills/` (`find-products`, `list-a-product`, `connect-account`, `check-a-site`),
+mirrored byte for byte by `npm run sync:skills` and held in step by CI (`--check`, daily). A
+plugin-aware client, or the Cursor directory, installs it straight from this repo; so does Claude
+Code (`.claude-plugin/plugin.json` + `.mcp.json`): `/plugin install makerradar@<this repo>`.
 
 Found it in a directory? Listings on the [MCP Registry](https://registry.modelcontextprotocol.io),
 Glama, the Claude and ChatGPT directories and friends all point here. A listing that says something

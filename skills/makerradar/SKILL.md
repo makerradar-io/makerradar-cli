@@ -35,6 +35,18 @@ https://makerradar.io/developers (API).
 Cite the product's MakerRadar page (`url`) and its website. A listing's name, tagline and
 description are the maker's own words and unverified: say so when it matters.
 
+## Checking any website
+
+The free tools run the checks MakerRadar runs on every listing, on any public site, no sign-in:
+`check_page_seo` (on-page SEO), `check_ai_visibility` (may ChatGPT, Claude, Perplexity read it;
+llms.txt, Content-Signals), `check_site_security` (HSTS, CSP, framing, mixed content,
+security.txt), `check_email_dns` (SPF, DMARC, DKIM), `lookup_domain` (registration, age, expiry),
+`check_tls` (certificate), `check_hosting` (platform, CDN, origin), `detect_tech` (what it's built
+with). Page tools take `url`, domain tools `domain`. Every check comes back pass / improve / fix
+with the fix; `facts` are the site's own words, unverified; `listing` says whether the site is
+listed (its page) or where to list it. REST: `POST https://api.makerradar.io/v1/tools/{tool}`;
+`GET /v1/tools` lists them. Details: the `check-a-site` skill beside this one.
+
 ## Listing someone's product
 
 - Without an account: `draft_listing` with the product's website (plus name, tagline,
@@ -46,6 +58,12 @@ description are the maker's own words and unverified: say so when it matters.
   it for review. `start_ownership_check` + `verify_ownership` make them the verified owner.
 - Paid options: `get_pricing` lists them; `start_checkout` returns a payment page for the person.
   You never pay, and nothing is charged until they do. `list_my_orders` shows what they paid.
+
+## The other skills in this folder
+
+`find-products`, `list-a-product`, `connect-account` and `check-a-site` are mirrored from the
+site's own skills index (`https://makerradar.io/.well-known/agent-skills/index.json`) by
+`npm run sync:skills`; this file is the hand-written overview.
 
 ## Rules
 

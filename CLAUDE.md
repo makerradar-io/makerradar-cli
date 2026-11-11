@@ -40,8 +40,14 @@ repository: `server.json` is the MCP Registry entry (`io.makerradar/mcp` — bot
 package as the stdio option, `makerradar mcp serve`), `glama.json` names the maintainers, and
 `package.json`'s `mcpName` must equal `server.json`'s `name` (the registry checks the published
 package for it). The repo is also an Agent Plugin (agent-plugins.org): `plugin.json`, `mcp.json` (both remotes,
-`streamable-http`) and `skills/makerradar/SKILL.md` — a change to a server URL or a tool's role goes
-in all of them. `test/server-json.test.js` holds them together; `npm version` runs
+`streamable-http`) and `skills/` — a change to a server URL or a tool's role goes
+in all of them. `skills/makerradar/SKILL.md` is the one hand-written skill (the overview); every
+other `skills/<name>/SKILL.md` and `skills/index.json` are **mirrored from the site**
+(`/.well-known/agent-skills/index.json`, rendered from the product's code) by
+`npm run sync:skills` — never edit them here; CI's `skills` job runs `--check` on every push and
+daily and fails on drift. A skill shipped here before the site serves it is a warning, not a
+failure. `.claude-plugin/plugin.json` + `.mcp.json` make the same repo a Claude Code plugin;
+`npm version` keeps that manifest's version in step too. `test/server-json.test.js` holds them together; `npm version` runs
 `scripts/sync-server-json.mjs` so the versions in `server.json` and `plugin.json` follow. The bridge
 (`src/mcp-bridge.js`) interprets nothing: stdio in, the server's own answers out.
 
