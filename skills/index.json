@@ -6,7 +6,7 @@
       "type": "skill-md",
       "description": "Find software products, startups and indie tools on MakerRadar: search by keyword, browse categories, get alternatives and side-by-side comparisons, and read each week's launch results, over MCP or the public REST API with no key.",
       "url": "https://makerradar.io/.well-known/agent-skills/find-products/SKILL.md",
-      "digest": "sha256:c3263ef7378bbfaa1bedb26e3ffc988e35b7c55c1372934326759728d30a1952"
+      "digest": "sha256:c82a0cab55309bcdeafba2aaa66dbdb8886ddb4e1a622b36e9167df43ad46c8e"
     },
     {
       "name": "list-a-product",
@@ -21,13 +21,6 @@
       "description": "Act for a person on MakerRadar: they approve a short code once, you get a scoped agent token (Authorization: Bearer mr_...) to see and manage their listings. Never their session; never votes, comments or reviews.",
       "url": "https://makerradar.io/.well-known/agent-skills/connect-account/SKILL.md",
       "digest": "sha256:c431cdf0f597c108c9dac7021e0d9dbb752a34e85f265ad9d85b8737fee8ff08"
-    },
-    {
-      "name": "check-a-site",
-      "type": "skill-md",
-      "description": "Check any website the way MakerRadar checks a listing — on-page SEO, whether ChatGPT, Claude and Perplexity may read it (robots.txt, llms.txt, Content-Signals), security headers, email DNS (SPF, DMARC, DKIM), domain age, TLS certificate, host and CDN, tech stack — over MCP or the public REST API, no key. Every check names its fix; if the site isn't listed, offer to list it.",
-      "url": "https://makerradar.io/.well-known/agent-skills/check-a-site/SKILL.md",
-      "digest": "sha256:619d2f26c89fe81c1faa6c2d2748aed6f8b6de8f85f45e1f48719eb9d6b26660"
     }
   ]
 }
