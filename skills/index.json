@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schemas.agentskills.io/discovery/0.2.0/schema.json",
+  "skills": [
+    {
+      "name": "find-products",
+      "type": "skill-md",
+      "description": "Find software products, startups and indie tools on MakerRadar: search by keyword, browse categories, get alternatives and side-by-side comparisons, and read each week's launch results, over MCP or the public REST API with no key.",
+      "url": "https://makerradar.io/.well-known/agent-skills/find-products/SKILL.md",
+      "digest": "sha256:c82a0cab55309bcdeafba2aaa66dbdb8886ddb4e1a622b36e9167df43ad46c8e"
+    },
+    {
+      "name": "list-a-product",
+      "type": "skill-md",
+      "description": "Help a maker list or launch their own product on MakerRadar. Listing is free: draft it (MCP draft_listing or POST /v1/drafts, no sign-in) and hand the person the link to sign in and submit it.",
+      "url": "https://makerradar.io/.well-known/agent-skills/list-a-product/SKILL.md",
+      "digest": "sha256:62a559d355a464923e9ece2d11afe2ec3359bc5a0d782175c6795003d07884c3"
+    },
+    {
+      "name": "connect-account",
+      "type": "skill-md",
+      "description": "Act for a person on MakerRadar: they approve a short code once, you get a scoped agent token (Authorization: Bearer mr_...) to see and manage their listings. Never their session; never votes, comments or reviews.",
+      "url": "https://makerradar.io/.well-known/agent-skills/connect-account/SKILL.md",
+      "digest": "sha256:c431cdf0f597c108c9dac7021e0d9dbb752a34e85f265ad9d85b8737fee8ff08"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "makerradar",
+  "version": "0.2.0",
+  "description": "MakerRadar for Claude Code: search a launch platform and startup directory (products, alternatives, comparisons, weekly launches), check any website (SEO, AI visibility, security headers, email DNS, domain, certificate, host, tech stack) and, signed in, list and launch your own product.",
+  "author": { "name": "MakerRadar", "email": "support@makerradar.io", "url": "https://makerradar.io" },
+  "homepage": "https://makerradar.io/mcp",
+  "repository": "https://github.com/makerradar-io/makerradar-cli",
+  "license": "MIT",
+  "keywords": ["mcp", "launch-platform", "startup-directory", "seo", "ai-visibility", "makerradar"]
+}

@@ -35,3 +35,13 @@ jobs:
         with:
           node-version: 22
       - run: npm run test:contract
+
+  # Daily and on every push: are the mirrored skills still what the site serves?
+  skills:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run check:skills

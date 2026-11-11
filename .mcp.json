@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "makerradar": {
+      "type": "http",
+      "url": "https://api.makerradar.io/mcp"
+    },
+    "makerradar-account": {
+      "type": "http",
+      "url": "https://api.makerradar.io/mcp/account"
+    }
+  }
+}

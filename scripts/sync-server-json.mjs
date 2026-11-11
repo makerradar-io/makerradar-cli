@@ -32,3 +32,12 @@ if (plugin.version !== pkg.version) {
   writeFileSync(pluginPath, `${JSON.stringify(plugin, null, 2)}\n`);
   console.log(`plugin.json: version → ${pkg.version}`);
 }
+
+// The Claude Code plugin manifest carries the same version.
+const claudePluginPath = new URL(".claude-plugin/plugin.json", root);
+const claudePlugin = JSON.parse(readFileSync(claudePluginPath, "utf8"));
+if (claudePlugin.version !== pkg.version) {
+  claudePlugin.version = pkg.version;
+  writeFileSync(claudePluginPath, `${JSON.stringify(claudePlugin, null, 2)}\n`);
+  console.log(`.claude-plugin/plugin.json: version → ${pkg.version}`);
+}

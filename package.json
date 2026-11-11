@@ -46,7 +46,9 @@
     "test:contract": "MAKERRADAR_CONTRACT=1 node --test test/contract.test.js",
     "prepublishOnly": "npm test",
     "sync:server-json": "node scripts/sync-server-json.mjs",
-    "version": "node scripts/sync-server-json.mjs && git add server.json plugin.json"
+    "sync:skills": "node scripts/sync-skills.mjs",
+    "check:skills": "node scripts/sync-skills.mjs --check",
+    "version": "node scripts/sync-server-json.mjs && git add server.json plugin.json .claude-plugin/plugin.json"
   },
   "publishConfig": {
     "access": "public"

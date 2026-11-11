@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `skills/`: one folder per skill the site serves (`find-products`, `list-a-product`,
+  `connect-account`, `check-a-site`), mirrored from `/.well-known/agent-skills/index.json` by
+  `npm run sync:skills` (digests verified; `--check` in CI fails on drift). `skills/makerradar` stays
+  the hand-written overview and now covers the free site checks (`check_*` MCP tools,
+  `POST /v1/tools/{tool}`).
+- `.claude-plugin/plugin.json` + `.mcp.json`: the repo installs as a Claude Code plugin too.
+
 - The repository is an Agent Plugin (agent-plugins.org 1.0.0): `plugin.json`, `mcp.json` naming
   both servers, and `skills/makerradar/SKILL.md`, so plugin clients and the Cursor directory can
   install it from the repo. `npm version` keeps `plugin.json`'s version in step.
