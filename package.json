@@ -1,6 +1,6 @@
 {
   "name": "makerradar",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "mcpName": "io.makerradar/mcp",
   "description": "Official MakerRadar CLI: search the launch directory and manage your listings from the terminal.",
   "keywords": [

@@ -1,11 +1,22 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "makerradar",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "MakerRadar's MCP server and skill: search a launch platform and startup directory (products, alternatives, comparisons, weekly launches) and, signed in, list and launch your own product.",
-  "author": { "name": "MakerRadar", "email": "support@makerradar.io", "url": "https://makerradar.io" },
+  "author": {
+    "name": "MakerRadar",
+    "email": "support@makerradar.io",
+    "url": "https://makerradar.io"
+  },
   "homepage": "https://makerradar.io/mcp",
   "repository": "https://github.com/makerradar-io/makerradar-cli",
   "license": "MIT",
-  "keywords": ["mcp", "mcp-server", "launch-platform", "startup-directory", "product-hunt", "makerradar"]
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "launch-platform",
+    "startup-directory",
+    "product-hunt",
+    "makerradar"
+  ]
 }
