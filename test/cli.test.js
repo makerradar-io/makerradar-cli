@@ -170,6 +170,8 @@ describe("directory commands", () => {
             { tool: "seo-checker", name: "SEO checker", input: "url", requiresToken: false },
             { tool: "keyword-generator", name: "Keyword generator", input: "seed", requiresToken: false },
             { tool: "domain-rating-checker", name: "Domain rating checker", input: "domain", requiresToken: true },
+            { tool: "ai-robots-txt-generator", name: "AI robots.txt generator", input: "options", requiresToken: false },
+            { tool: "launch-directory-planner", name: "Directory planner", input: "options", requiresToken: false },
           ],
         },
       }),
@@ -178,7 +180,9 @@ describe("directory commands", () => {
     assert.equal(r.code, 0);
     assert.match(r.stdout, /seo-checker\s+SEO checker/);
     assert.match(r.stdout, /domain-rating-checker\s+Domain rating checker\s+needs login/);
-    assert.match(r.stdout, /keyword-generator\s+Keyword generator\s+takes words/);
+    assert.match(r.stdout, /keyword-generator\s+Keyword generator\s+makerradar keywords/);
+    assert.match(r.stdout, /ai-robots-txt-generator\s+AI robots\.txt generator\s+makerradar robots/);
+    assert.match(r.stdout, /launch-directory-planner\s+Directory planner\s+on the site or the API/);
   });
 
   it("keywords sends the words as the seed and prints each group", async () => {
@@ -197,6 +201,63 @@ describe("directory commands", () => {
     assert.equal(r.code, 0);
     assert.deepEqual(api.calls[0]?.body, { seed: "invoicing software" });
     assert.match(r.stdout, /Buyer keywords\n  best invoicing software/);
+  });
+
+  it("robots sends the choices, prints only the file on stdout and the notes on stderr", async () => {
+    const api = fakeApi({
+      "POST /tools/ai-robots-txt-generator": () => ({
+        body: {
+          data: {
+            tool: "ai-robots-txt-generator",
+            robotsTxt: "User-agent: *\nAllow: /\n\nUser-agent: GPTBot\nDisallow: /\n",
+            blocked: ["GPTBot"],
+            allowed: ["OAI-SearchBot"],
+            dropped: ["path \"admin\": must start with \"/\""],
+            toolUrl: "https://makerradar.io/tools/ai-robots-txt-generator",
+          },
+        },
+      }),
+    });
+    const r = await run(
+      [
+        "robots",
+        "--preset",
+        "block-training",
+        "--block",
+        "GPTBot,CCBot",
+        "--allow",
+        "OAI-SearchBot",
+        "--disallow",
+        "admin",
+        "--signals",
+        "search,ai-input",
+      ],
+      api,
+    );
+    assert.equal(r.code, 0);
+    assert.deepEqual(api.calls[0]?.body, {
+      preset: "block_training",
+      crawlers: { GPTBot: "block", CCBot: "block", "OAI-SearchBot": "allow" },
+      disallowPaths: ["admin"],
+      contentSignals: { search: true, aiInput: true, aiTrain: false },
+    });
+    assert.equal(r.stdout, "User-agent: *\nAllow: /\n\nUser-agent: GPTBot\nDisallow: /\n");
+    assert.match(r.stderr, /Blocks 1: GPTBot/);
+    assert.match(r.stderr, /Ignored: path "admin"/);
+    const json = await run(["robots", "--json"], api);
+    assert.equal(JSON.parse(json.stdout).data.blocked[0], "GPTBot");
+    assert.deepEqual(api.calls[1]?.body, {});
+  });
+
+  it("robots refuses a wrong preset or signal before calling, and check points to it", async () => {
+    const api = fakeApi({});
+    assert.equal((await run(["robots", "--preset", "block-some"], api)).code, 2);
+    assert.equal((await run(["robots", "--signals", "maybe"], api)).code, 2);
+    assert.equal((await run(["robots", "--block", "GPTBot", "--allow", "GPTBot"], api)).code, 2);
+    const check = await run(["check", "acme.com", "--tool", "ai-robots-txt-generator"], api);
+    assert.equal(check.code, 2);
+    assert.match(check.stderr, /makerradar robots/);
+    assert.equal(api.calls.length, 0);
   });
 
   it("draft sends the site and the optional fields, and gives the review link", async () => {

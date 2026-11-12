@@ -53,8 +53,9 @@ Or run it without installing: `npx makerradar <command>`.
 | Command | What it does |
 | --- | --- |
 | `makerradar check <url>` | Check a page or site with one of MakerRadar's free tools: on-page SEO by default, any other with `--tool <slug>`. Every check comes back GOOD / IMPROVE / FIX with what to do, then whether the site is listed |
-| `makerradar tools` | The tools `check` can run: SEO, structured data, social card, sitemap, robots.txt, logo, AI visibility, what AI sees, llms.txt, agent readiness, security headers, email DNS, domain age, certificate, hosting, tech stack, Domain Rating (needs `login`) |
+| `makerradar tools` | Every free tool and the command that runs it. `check` runs the website grader, SEO, SERP snippet preview, redirects, broken links, structured data, social card, sitemap, robots.txt, logo, AI visibility, AI citation readiness, what AI sees, llms.txt, agent readiness, security headers, email DNS, domain age, certificate, hosting, tech stack, alternatives, domain availability and Domain Rating (needs `login`) |
 | `makerradar keywords <words>` | Search phrases people use to find a kind of product: buyer, comparison, how-to and questions people ask AI |
+| `makerradar robots` | robots.txt rules for AI crawlers (GPTBot, ClaudeBot, PerplexityBot …): `--preset allow-all\|block-training\|block-all`, `--block` / `--allow <token>`, `--disallow <path>`, `--sitemap <url>`, `--signals search,ai-input,ai-train\|none`. The file goes to stdout (`> robots.txt`), what it blocks to stderr |
 
 ### Your account
 

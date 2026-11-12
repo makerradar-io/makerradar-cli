@@ -38,6 +38,12 @@ const OPTIONS = /** @type {const} */ ({
   data: { type: "string" },
   account: { type: "boolean" },
   tool: { type: "string" },
+  preset: { type: "string" },
+  block: { type: "string", multiple: true },
+  allow: { type: "string", multiple: true },
+  disallow: { type: "string", multiple: true },
+  sitemap: { type: "string" },
+  signals: { type: "string" },
 });
 const GLOBAL_OPTIONS = new Set(["json", "help", "version", "api-url", "token"]);
 
