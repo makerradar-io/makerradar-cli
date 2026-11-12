@@ -52,6 +52,68 @@ function printJson(/** @type {Context} */ ctx, /** @type {unknown} */ body) {
   ctx.out(JSON.stringify(body, null, 2));
 }
 
+/** The AI crawler robots.txt generator's slug (`makerradar robots`). */
+export const AI_ROBOTS_TOOL = "ai-robots-txt-generator";
+
+const ROBOTS_PRESETS = ["allow-all", "block-training", "block-all"];
+const ROBOTS_SIGNALS = { search: "search", "ai-input": "aiInput", "ai-train": "aiTrain" };
+
+/** Repeatable, comma-separated values, trimmed, empties dropped. */
+const listFlag = (/** @type {unknown} */ v) =>
+  (Array.isArray(v) ? v : v === undefined ? [] : [v])
+    .flatMap((x) => String(x).split(","))
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+/**
+ * `makerradar robots`' flags as the generator's choices. A wrong preset or signal is a usage
+ * mistake (exit 2, no call); crawler tokens and paths are the API's to check — it answers what it
+ * ignored, and why.
+ */
+export function robotsChoices(/** @type {Record<string, any>} */ flags) {
+  /** @type {Record<string, unknown>} */
+  const choices = {};
+  if (flags.preset !== undefined) {
+    const preset = String(flags.preset).trim().toLowerCase().replace(/_/g, "-");
+    if (!ROBOTS_PRESETS.includes(preset)) {
+      throw new UsageError(`--preset is one of ${ROBOTS_PRESETS.join(", ")}.`, "robots");
+    }
+    choices.preset = preset.replace(/-/g, "_");
+  }
+  /** @type {Record<string, string>} */
+  const crawlers = {};
+  for (const token of listFlag(flags.block)) crawlers[token] = "block";
+  for (const token of listFlag(flags.allow)) {
+    if (crawlers[token] === "block") {
+      throw new UsageError(`${token} is both blocked and allowed: name it once.`, "robots");
+    }
+    crawlers[token] = "allow";
+  }
+  if (Object.keys(crawlers).length > 0) choices.crawlers = crawlers;
+  const paths = listFlag(flags.disallow);
+  if (paths.length > 0) choices.disallowPaths = paths;
+  if (flags.sitemap !== undefined) choices.sitemapUrl = String(flags.sitemap).trim();
+  if (flags.signals !== undefined) {
+    const named = listFlag(String(flags.signals).toLowerCase());
+    /** @type {Record<string, boolean>} */
+    const signals = { search: false, aiInput: false, aiTrain: false };
+    if (!(named.length === 1 && named[0] === "none")) {
+      for (const n of named) {
+        const key = /** @type {Record<string, string>} */ (ROBOTS_SIGNALS)[n];
+        if (!key) {
+          throw new UsageError(
+            `--signals takes ${Object.keys(ROBOTS_SIGNALS).join(", ")} (comma-separated), or none.`,
+            "robots",
+          );
+        }
+        signals[key] = true;
+      }
+    }
+    choices.contentSignals = signals;
+  }
+  return choices;
+}
+
 /** A product slug from a slug or a product page URL (`https://makerradar.io/p/<slug>`). */
 export function slugFrom(/** @type {string | undefined} */ input) {
   const value = (input ?? "").trim();
@@ -380,6 +442,9 @@ export const COMMANDS = [
       if (tool === "keyword-generator") {
         throw new UsageError("For keyword ideas, run `makerradar keywords <a few words>`.", "check");
       }
+      if (tool === AI_ROBOTS_TOOL) {
+        throw new UsageError("To write robots.txt rules for AI crawlers, run `makerradar robots`.", "check");
+      }
       const body = await ctx.client.call("runTool", { params: { tool }, body: { url: target } });
       if (ctx.json) return printJson(ctx, body);
       printReport(ctx, body.data ?? {});
@@ -397,7 +462,15 @@ export const COMMANDS = [
       const rows = (body.data ?? []).map((/** @type {any} */ t) => [
         clean(t.tool),
         clean(t.name),
-        t.requiresToken ? "needs login" : t.input === "seed" ? "takes words" : "",
+        t.requiresToken
+          ? "needs login"
+          : t.tool === AI_ROBOTS_TOOL
+            ? "makerradar robots"
+            : t.input === "seed"
+              ? "makerradar keywords"
+              : t.input === "options" || t.input === "none"
+                ? "on the site or the API"
+                : "",
       ]);
       ctx.out(table(rows));
       ctx.out();
@@ -426,6 +499,44 @@ export const COMMANDS = [
         ctx.out(ctx.s.bold(clean(g.title)));
         for (const p of g.phrases ?? []) ctx.out(`  ${clean(p)}`);
       });
+    },
+  },
+  {
+    name: "robots",
+    args: "",
+    group: "Free site checks (no account needed)",
+    summary: "Write robots.txt rules for AI crawlers (GPTBot, ClaudeBot, PerplexityBot …)",
+    options: ["preset", "block", "allow", "disallow", "sitemap", "signals"],
+    examples: [
+      "makerradar robots",
+      "makerradar robots --preset block-training > robots.txt",
+      "makerradar robots --preset block-all --allow OAI-SearchBot --allow PerplexityBot",
+      "makerradar robots --block GPTBot,CCBot --disallow /admin --sitemap https://acme.com/sitemap.xml",
+      "makerradar robots --signals search,ai-input --json",
+    ],
+    details:
+      "Prints the robots.txt lines on stdout, so `> robots.txt` saves just the file; what it blocks, and any input it ignored, go to stderr. --preset is allow-all (the default), block-training (opt out of model training, stay in AI search) or block-all; --block and --allow name crawlers by user-agent token and override the preset; --disallow keeps a path out of every crawler; --signals states Content Signals (any of search, ai-input, ai-train; the rest are no; `none` for all no). Googlebot and Bingbot are never named, so search indexing is unchanged. Nothing is fetched or stored.",
+    async run(ctx, _args, flags) {
+      const body = await ctx.client.call("runTool", {
+        params: { tool: AI_ROBOTS_TOOL },
+        body: robotsChoices(flags),
+      });
+      if (ctx.json) return printJson(ctx, body);
+      const data = body.data ?? {};
+      for (const line of String(data.robotsTxt ?? "").replace(/\n$/, "").split("\n")) {
+        ctx.out(clean(line));
+      }
+      const blocked = Array.isArray(data.blocked) ? data.blocked : [];
+      ctx.err(
+        ctx.s.dim(
+          blocked.length === 0
+            ? "Every AI crawler may read the site."
+            : `Blocks ${blocked.length}: ${blocked.map((t) => clean(String(t))).join(", ")}`,
+        ),
+      );
+      for (const note of Array.isArray(data.dropped) ? data.dropped : []) {
+        ctx.err(ctx.s.dim(`Ignored: ${clean(String(note))}`));
+      }
     },
   },
   {

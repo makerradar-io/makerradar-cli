@@ -6,7 +6,7 @@
       "type": "skill-md",
       "description": "Find software products, startups and indie tools on MakerRadar: search by keyword, browse categories, get alternatives and side-by-side comparisons, and read each week's launch results, over MCP or the public REST API with no key.",
       "url": "https://makerradar.io/.well-known/agent-skills/find-products/SKILL.md",
-      "digest": "sha256:12e4312f916a7c0e863e519a823fffe18fcbe51b06cc7b5790d8a6833ab37635"
+      "digest": "sha256:51ded61fb9bf51e97929ff612a76acaab20e0f5788add98303e6434a80d645a2"
     },
     {
       "name": "list-a-product",
