@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "makerradar",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "MakerRadar's MCP server and skill: search a launch platform and startup directory (products, alternatives, comparisons, weekly launches) and, signed in, list and launch your own product.",
   "author": {
     "name": "MakerRadar",
