@@ -48,6 +48,14 @@ Or run it without installing: `npx makerradar <command>`.
 | `makerradar pricing` | What's on sale (Premium launch, featured weeks, ads…), with prices |
 | `makerradar draft <website>` | Draft a listing for your product. You get a link to review and submit it: nothing is public until you do, and every listing is reviewed first |
 
+### Free site checks (no account needed)
+
+| Command | What it does |
+| --- | --- |
+| `makerradar check <url>` | Check a page or site with one of MakerRadar's free tools: on-page SEO by default, any other with `--tool <slug>`. Every check comes back GOOD / IMPROVE / FIX with what to do, then whether the site is listed |
+| `makerradar tools` | The tools `check` can run: SEO, structured data, social card, sitemap, robots.txt, logo, AI visibility, what AI sees, llms.txt, agent readiness, security headers, email DNS, domain age, certificate, hosting, tech stack, Domain Rating (needs `login`) |
+| `makerradar keywords <words>` | Search phrases people use to find a kind of product: buyer, comparison, how-to and questions people ask AI |
+
 ### Your account
 
 | Command | What it does |

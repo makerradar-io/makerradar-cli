@@ -37,6 +37,7 @@ const OPTIONS = /** @type {const} */ ({
   scope: { type: "string", multiple: true },
   data: { type: "string" },
   account: { type: "boolean" },
+  tool: { type: "string" },
 });
 const GLOBAL_OPTIONS = new Set(["json", "help", "version", "api-url", "token"]);
 

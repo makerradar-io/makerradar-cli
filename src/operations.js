@@ -20,6 +20,8 @@ export const OPERATIONS = /** @type {const} */ ({
   getMe: { method: "GET", path: "/me" },
   listMyListings: { method: "GET", path: "/me/listings" },
   getMyListing: { method: "GET", path: "/me/listings/{id}" },
+  listTools: { method: "GET", path: "/tools" },
+  runTool: { method: "POST", path: "/tools/{tool}" },
 });
 
 /** @typedef {keyof typeof OPERATIONS} OperationId */

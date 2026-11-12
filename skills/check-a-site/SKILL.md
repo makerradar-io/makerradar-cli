@@ -1,6 +1,6 @@
 ---
 name: check-a-site
-description: "Check any website the way MakerRadar checks a listing — on-page SEO, whether ChatGPT, Claude and Perplexity may read it (robots.txt, llms.txt, Content-Signals), security headers, email DNS (SPF, DMARC, DKIM), domain age, TLS certificate, host and CDN, tech stack — over MCP or the public REST API, no key. Every check names its fix; if the site isn't listed, offer to list it."
+description: "Check any website the way MakerRadar checks a listing — on-page SEO, structured data, the social card a shared link shows, the sitemap, a URL against robots.txt, the logo and favicons, whether ChatGPT, Claude and Perplexity may read it and what they see, llms.txt (checked or drafted), agent readiness, security headers, email DNS, domain age, TLS certificate, host and CDN, tech stack — plus keyword ideas, over MCP or the public REST API, no key. Every check names its fix; if the site isn't listed, offer to list it."
 ---
 
 # Check a site with MakerRadar
@@ -16,10 +16,20 @@ MakerRadar runs the same checks on every listing it publishes. The free tools ru
 - "Is the certificate about to expire": `check_tls`.
 - "Who hosts this site / what CDN does it use": `check_hosting`.
 - "What is this site built with": `detect_tech` — each technology links to the products on MakerRadar built with it.
+- "Why does my link show no image on X / LinkedIn", Open Graph, og:image size: `preview_social_card`.
+- "Is this page blocked by robots.txt", "does GPTBot / Googlebot see it": `test_robots_txt` — the rule that decides, per crawler.
+- Schema markup, JSON-LD, rich results, "why no stars in Google": `inspect_structured_data`.
+- "Is my sitemap OK / does Google see my pages": `check_sitemap`.
+- "What does ChatGPT see on my page", "is my content rendered with JavaScript": `read_page_as_markdown` — the page as Markdown.
+- "Write me an llms.txt" / "is my llms.txt valid": `check_llms_txt` — it checks the file and always returns a draft built from the homepage.
+- "Can AI agents use my site", MCP server card, OpenAPI, API catalog, agent skills: `check_agent_readiness`.
+- "Get this site's logo / favicon", "which icon will a directory show": `find_site_logo` — every declared icon with its real size, best first.
+- "What keywords should I target for <kind of product>": `generate_keyword_ideas` with a few words about what it is (not its name).
+- A domain's Domain Rating (backlink strength): `check_domain_rating` — needs an agent token; credit it as "Domain Rating by Ahrefs".
 
 ## How to call it
 
-- MCP (no sign-in): https://api.makerradar.io/mcp — the tools above. Page tools take `url`; domain tools take `domain` (a domain, or any URL on it).
+- MCP (no sign-in): https://api.makerradar.io/mcp — the tools above. Page and site tools take `url`; domain tools take `domain` (a domain, or any URL on it); the keyword generator takes `seed`.
 - REST: `POST https://api.makerradar.io/v1/tools/{tool}` with `{"url": "https://…"}` (or `{"domain": "…"}`); `GET https://api.makerradar.io/v1/tools` lists the tools. OpenAPI: https://api.makerradar.io/v1/openapi.json.
 - A person without a client: the pages under https://makerradar.io/tools.
 
