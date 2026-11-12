@@ -121,6 +121,57 @@ function productLines(
   ctx.out(`${pad}${s.cyan(clean(p.url))}`);
 }
 
+
+/** The tool `check` runs when none is named: the on-page SEO check. */
+export const DEFAULT_TOOL = "seo-checker";
+
+/** How each check status reads in a terminal (the site's own words). */
+const STATUS_LABEL = { pass: "GOOD", warn: "IMPROVE", fail: "FIX" };
+
+function statusTag(/** @type {Context} */ ctx, /** @type {string} */ status) {
+  const label = STATUS_LABEL[/** @type {keyof typeof STATUS_LABEL} */ (status)] ?? status.toUpperCase();
+  const paint = status === "pass" ? ctx.s.green : status === "warn" ? ctx.s.yellow : ctx.s.red;
+  return paint(label.padEnd(7));
+}
+
+/** The line every tool result ends with: the site's listing, or where to list it. */
+function listingLine(/** @type {Context} */ ctx, /** @type {any} */ listing) {
+  const { s } = ctx;
+  if (!listing) return;
+  ctx.out();
+  if (listing.listed) {
+    ctx.out(`Listed on MakerRadar: ${s.cyan(clean(listing.productUrl ?? ""))}`);
+    if (listing.claimable && listing.claimUrl) {
+      ctx.out(`Is it yours? Claim it: ${s.cyan(clean(listing.claimUrl))}`);
+    }
+  } else if (listing.submitUrl) {
+    ctx.out(`Not on MakerRadar yet. List it free: ${s.cyan(clean(listing.submitUrl))}`);
+  }
+}
+
+/** A tool's report in a terminal: the score, then each check (fails first) with its fix. */
+function printReport(/** @type {Context} */ ctx, /** @type {any} */ r) {
+  const { s } = ctx;
+  if (typeof r.domainRating === "number") {
+    ctx.out(`${s.bold(clean(r.host ?? ""))}  Domain Rating ${s.bold(String(r.domainRating))}`);
+    ctx.out(s.dim(clean(r.credit?.text ?? "Domain Rating by Ahrefs")));
+  } else {
+    const subject = clean(r.finalUrl ?? r.url ?? r.host ?? "");
+    ctx.out(`${s.bold(subject)}  ${typeof r.score === "number" ? `${r.score}/100` : ""}`.trim());
+  }
+  for (const c of r.checks ?? []) {
+    ctx.out();
+    ctx.out(`${statusTag(ctx, c.status)} ${s.bold(clean(c.label))}`);
+    ctx.out(`        ${clean(c.detail)}`);
+    if (c.fix) ctx.out(`        ${s.dim("Fix:")} ${clean(c.fix)}`);
+  }
+  if (r.toolUrl) {
+    ctx.out();
+    ctx.out(s.dim(`The same check on the web: ${clean(r.toolUrl)}`));
+  }
+  listingLine(ctx, r.listing);
+}
+
 /** @type {Command[]} */
 export const COMMANDS = [
   {
@@ -304,6 +355,77 @@ export const COMMANDS = [
         ctx.out();
         ctx.out(ctx.s.dim(clean(body.data.note)));
       }
+    },
+  },
+  {
+    name: "check",
+    args: "<url>",
+    group: "Free site checks (no account needed)",
+    summary: "Check a page or site with one of the free tools (SEO by default)",
+    options: ["tool"],
+    examples: [
+      "makerradar check acme.com",
+      "makerradar check https://acme.com/pricing --tool structured-data-checker",
+      "makerradar check acme.com --tool agent-readiness-checker --json",
+    ],
+    details:
+      "Runs one of the free tools MakerRadar runs on every listing: `makerradar tools` lists them. Every check comes back as GOOD / IMPROVE / FIX with what to do about it. The site is fetched once, as MakerRadar's crawler, after its robots.txt; nothing is stored. The Domain Rating lookup needs `makerradar login` first.",
+    async run(ctx, args, flags) {
+      const target = (args[0] ?? "").trim();
+      if (!target) throw new UsageError("Name a page or a site: makerradar check acme.com", "check");
+      const tool = String(flags.tool ?? DEFAULT_TOOL).trim().toLowerCase();
+      if (!/^[a-z0-9][a-z0-9-]*$/.test(tool)) {
+        throw new UsageError("--tool takes a tool's slug: `makerradar tools` lists them.", "check");
+      }
+      if (tool === "keyword-generator") {
+        throw new UsageError("For keyword ideas, run `makerradar keywords <a few words>`.", "check");
+      }
+      const body = await ctx.client.call("runTool", { params: { tool }, body: { url: target } });
+      if (ctx.json) return printJson(ctx, body);
+      printReport(ctx, body.data ?? {});
+    },
+  },
+  {
+    name: "tools",
+    args: "",
+    group: "Free site checks (no account needed)",
+    summary: "The free tools `check` can run",
+    examples: ["makerradar tools", "makerradar tools --json"],
+    async run(ctx) {
+      const body = await ctx.client.call("listTools");
+      if (ctx.json) return printJson(ctx, body);
+      const rows = (body.data ?? []).map((/** @type {any} */ t) => [
+        clean(t.tool),
+        clean(t.name),
+        t.requiresToken ? "needs login" : t.input === "seed" ? "takes words" : "",
+      ]);
+      ctx.out(table(rows));
+      ctx.out();
+      ctx.out(ctx.s.dim("Run one: makerradar check <url> --tool <slug>"));
+    },
+  },
+  {
+    name: "keywords",
+    args: "<a few words>",
+    group: "Free site checks (no account needed)",
+    summary: "Search phrases people use to find a kind of product",
+    examples: ['makerradar keywords "invoicing software"', "makerradar keywords ai meeting notes --json"],
+    details:
+      "Describe what the product is, not its name. Ideas come from patterns (buyer, comparison, how-to and questions people ask AI), with no search volumes and no outside service.",
+    async run(ctx, args) {
+      const seed = args.join(" ").trim();
+      if (!seed) throw new UsageError('Describe the product in a few words: makerradar keywords "invoicing software"', "keywords");
+      const body = await ctx.client.call("runTool", {
+        params: { tool: "keyword-generator" },
+        body: { seed },
+      });
+      if (ctx.json) return printJson(ctx, body);
+      const groups = body.data?.groups ?? [];
+      groups.forEach((/** @type {any} */ g, /** @type {number} */ i) => {
+        if (i > 0) ctx.out();
+        ctx.out(ctx.s.bold(clean(g.title)));
+        for (const p of g.phrases ?? []) ctx.out(`  ${clean(p)}`);
+      });
     },
   },
   {

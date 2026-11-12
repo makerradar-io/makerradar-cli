@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `makerradar check <url> [--tool <slug>]`: run any of the site's free tools (`POST /v1/tools/{tool}`)
+  — on-page SEO by default — and print each check as GOOD / IMPROVE / FIX with its fix, then
+  whether the site is listed (and its claim link). `makerradar tools` lists them;
+  `makerradar keywords <words>` runs the keyword generator. `--json` prints the API's answer.
+- `skills/`: `check-a-site` and `find-products` mirror the site's current text (every free tool).
+
 - `skills/`: one folder per skill the site serves (`find-products`, `list-a-product`,
   `connect-account`, `check-a-site`), mirrored from `/.well-known/agent-skills/index.json` by
   `npm run sync:skills` (digests verified; `--check` in CI fails on drift). `skills/makerradar` stays

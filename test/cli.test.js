@@ -89,6 +89,116 @@ describe("directory commands", () => {
     assert.equal((await run(["launches", "next"], api)).code, 2);
   });
 
+  it("check runs the SEO check by default and prints each fix, then the listing hook", async () => {
+    const report = {
+      tool: "seo-checker",
+      url: "https://acme.example/",
+      finalUrl: "https://acme.example/",
+      score: 70,
+      checks: [
+        { id: "title", status: "fail", label: "Title", detail: `No <title>${ESC}[2J.`, fix: "Add a title." },
+        { id: "h1", status: "pass", label: "H1", detail: "One H1.", fix: null },
+      ],
+      toolUrl: "https://makerradar.io/tools/seo-checker",
+      listing: { listed: false, submitUrl: "https://makerradar.io/submit?url=acme.example" },
+    };
+    const api = fakeApi({ "POST /tools/seo-checker": () => ({ body: { data: report } }) });
+    const r = await run(["check", "acme.example"], api);
+    assert.equal(r.code, 0);
+    assert.deepEqual(api.calls[0]?.body, { url: "acme.example" });
+    assert.match(r.stdout, /70\/100/);
+    assert.match(r.stdout, /FIX\s+Title/);
+    assert.match(r.stdout, /Fix: Add a title\./);
+    assert.match(r.stdout, /List it free: https:\/\/makerradar\.io\/submit/);
+    assert.ok(!r.stdout.includes(ESC));
+
+    const json = await run(["check", "acme.example", "--json"], api);
+    assert.deepEqual(JSON.parse(json.stdout), { data: report });
+  });
+
+  it("check --tool picks any tool; the listing line names the claim link", async () => {
+    const api = fakeApi({
+      "POST /tools/sitemap-checker": () => ({
+        body: {
+          data: {
+            tool: "sitemap-checker",
+            url: "https://acme.example",
+            score: 100,
+            checks: [],
+            listing: {
+              listed: true,
+              productUrl: "https://makerradar.io/p/acme",
+              claimable: true,
+              claimUrl: "https://makerradar.io/p/acme/claim",
+            },
+          },
+        },
+      }),
+    });
+    const r = await run(["check", "acme.example", "--tool", "sitemap-checker"], api);
+    assert.equal(r.code, 0);
+    assert.match(r.stdout, /Listed on MakerRadar: https:\/\/makerradar\.io\/p\/acme/);
+    assert.match(r.stdout, /Claim it: https:\/\/makerradar\.io\/p\/acme\/claim/);
+  });
+
+  it("check refuses a missing address or a bad tool before calling anything", async () => {
+    const api = fakeApi({});
+    for (const argv of [["check"], ["check", "acme.example", "--tool", "../x"], ["check", "a.b", "--tool", "keyword-generator"]]) {
+      const r = await run(argv, api);
+      assert.equal(r.code, 2, argv.join(" "));
+    }
+    assert.equal(api.calls.length, 0);
+  });
+
+  it("check passes the API's refusal through (exit 1)", async () => {
+    const api = fakeApi({
+      "POST /tools/seo-checker": () => ({
+        status: 403,
+        body: { error: "forbidden", message: "The site's robots.txt doesn't let us fetch that page.", hint: "", docs: "" },
+      }),
+    });
+    const r = await run(["check", "acme.example"], api);
+    assert.equal(r.code, 1);
+    assert.match(r.stderr, /robots\.txt/);
+  });
+
+  it("tools lists every tool and marks the ones that need a login", async () => {
+    const api = fakeApi({
+      "GET /tools": () => ({
+        body: {
+          data: [
+            { tool: "seo-checker", name: "SEO checker", input: "url", requiresToken: false },
+            { tool: "keyword-generator", name: "Keyword generator", input: "seed", requiresToken: false },
+            { tool: "domain-rating-checker", name: "Domain rating checker", input: "domain", requiresToken: true },
+          ],
+        },
+      }),
+    });
+    const r = await run(["tools"], api);
+    assert.equal(r.code, 0);
+    assert.match(r.stdout, /seo-checker\s+SEO checker/);
+    assert.match(r.stdout, /domain-rating-checker\s+Domain rating checker\s+needs login/);
+    assert.match(r.stdout, /keyword-generator\s+Keyword generator\s+takes words/);
+  });
+
+  it("keywords sends the words as the seed and prints each group", async () => {
+    const api = fakeApi({
+      "POST /tools/keyword-generator": () => ({
+        body: {
+          data: {
+            tool: "keyword-generator",
+            seed: "invoicing software",
+            groups: [{ intent: "buyer", title: "Buyer keywords", phrases: ["best invoicing software"] }],
+          },
+        },
+      }),
+    });
+    const r = await run(["keywords", "invoicing", "software"], api);
+    assert.equal(r.code, 0);
+    assert.deepEqual(api.calls[0]?.body, { seed: "invoicing software" });
+    assert.match(r.stdout, /Buyer keywords\n  best invoicing software/);
+  });
+
   it("draft sends the site and the optional fields, and gives the review link", async () => {
     const api = fakeApi({
       "POST /drafts": () => ({
