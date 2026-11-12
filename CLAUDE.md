@@ -48,7 +48,9 @@ other `skills/<name>/SKILL.md` and `skills/index.json` are **mirrored from the s
 daily and fails on drift. A skill shipped here before the site serves it is a warning, not a
 failure. `.claude-plugin/plugin.json` + `.mcp.json` make the same repo a Claude Code plugin;
 `npm version` keeps that manifest's version in step too. `test/server-json.test.js` holds them together; `npm version` runs
-`scripts/sync-server-json.mjs` so the versions in `server.json` and `plugin.json` follow. The bridge
+`scripts/sync-server-json.mjs` so the versions in `server.json` and `plugin.json` follow — and
+`server.json`'s own `version` moves by the same step (`scripts/server-version.mjs`), since the MCP
+Registry refuses a version it already has. The bridge
 (`src/mcp-bridge.js`) interprets nothing: stdio in, the server's own answers out.
 
 ## Releasing
