@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
 - `makerradar robots`: robots.txt rules for AI crawlers from the site's AI crawler robots.txt
   generator (`POST /v1/tools/ai-robots-txt-generator`): a preset (`allow-all`, `block-training`,
@@ -9,6 +9,8 @@
   and any input it ignored go to stderr. A wrong preset or signal is exit 2 without a call.
 - `makerradar check` also runs the new `redirect-checker` and `serp-preview` tools, and points to
   `makerradar robots` for the generator. `makerradar tools` says which command runs each tool.
+
+## 0.3.0
 
 - `makerradar check <url> [--tool <slug>]`: run any of the site's free tools (`POST /v1/tools/{tool}`)
   — on-page SEO by default — and print each check as GOOD / IMPROVE / FIX with its fix, then
