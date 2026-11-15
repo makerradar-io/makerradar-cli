@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- A token with spaces, line breaks or other characters a token never has (from `--token`,
+  `MAKERRADAR_TOKEN` or the saved config) is refused up front (exit 2), naming where it came from but
+  never echoing it; a network error never quotes the token either, in the CLI or `mcp serve`.
+- `makerradar mcp stdio` no longer prints a placeholder `MAKERRADAR_TOKEN`: left as is, it overrode
+  the token `login` saved and broke every account call.
+- With `--json`, a usage mistake is JSON on stderr too (`{"error":"usage","status":null,…}`).
+  `api --data @file` that can't be read is a usage mistake (exit 2), not a stack trace; a declined or
+  expired `login` is the API saying no (exit 1), not a usage mistake.
+- Every value the API sends is printed through `clean()`, cursors, counts and unknown check statuses
+  included, and `mcp serve` strips control characters from the server's messages it logs.
+- Release workflow: actions pinned to commit SHAs, `mcp-publisher` pinned to a release (never
+  `@latest`), and `id-token: write` only on the npm job.
+
 - `makerradar robots`: robots.txt rules for AI crawlers from the site's AI crawler robots.txt
   generator (`POST /v1/tools/ai-robots-txt-generator`): a preset (`allow-all`, `block-training`,
   `block-all`), per-crawler `--block` / `--allow`, `--disallow` paths, `--sitemap` and Content

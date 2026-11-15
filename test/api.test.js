@@ -1,7 +1,7 @@
 // @ts-check
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ApiError, createClient, DEFAULT_API_URL, tokenSafeUrl } from "../src/api.js";
+import { ApiError, createClient, DEFAULT_API_URL, redactToken, tokenSafeUrl, tokenShapeOk } from "../src/api.js";
 import { OPERATIONS } from "../src/operations.js";
 import { fakeApi } from "./helpers.js";
 
@@ -99,6 +99,29 @@ describe("the API client", () => {
     assert.equal(err.status, 0);
     assert.equal(err.code, "network");
     assert.match(err.message, /stopped answering/);
+  });
+
+  it("refuses a token a header can't carry, and never quotes a token in a network error", async () => {
+    assert.equal(tokenShapeOk("mr_live_abc-123"), true);
+    for (const bad of ["mr_a\nmr_b", "mr_a b", "mr_a\u0000", "mr_…"]) assert.equal(tokenShapeOk(bad), false, bad);
+    assert.throws(() => createClient({ token: "mr_a\nmr_b", userAgent: "test" }), (e) => {
+      assert.ok(e instanceof Error && !e.message.includes("mr_a"));
+      return true;
+    });
+    assert.equal(
+      redactToken('Headers.append: "Bearer mr_S1\nmr_S2" is an invalid header value.', null),
+      'Headers.append: "Bearer [token]" is an invalid header value.',
+    );
+    const client = createClient({
+      token: "mr_secret",
+      userAgent: "test",
+      fetch: async () => {
+        throw new TypeError("refused mr_secret here");
+      },
+    });
+    const err = await client.call("getMe").catch((e) => e);
+    assert.ok(err instanceof ApiError);
+    assert.doesNotMatch(err.message, /mr_secret/);
   });
 
   it("refuses to hold a token for a plain-http API that isn't this machine", () => {

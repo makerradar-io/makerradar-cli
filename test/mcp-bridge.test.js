@@ -140,6 +140,28 @@ describe("mcp serve (the stdio bridge)", () => {
     assert.equal(logs.length, 3);
   });
 
+  it("never quotes the token in an error, and strips control characters from what it logs", async () => {
+    let calls = 0;
+    const stdout = capture();
+    const logs = /** @type {string[]} */ ([]);
+    await runBridge({
+      url: URL_,
+      token: "mr_secret",
+      userAgent: "t/1",
+      stdin: stdinOf([listTools, { ...listTools, id: 3 }]),
+      stdout,
+      log: (l) => logs.push(l),
+      fetch: async () => {
+        calls++;
+        if (calls === 1) throw new TypeError('Headers.append: "Bearer mr_secret" is an invalid header value.');
+        return Response.json({ message: "Nope\u001b]8;;https://evil.test/\u0007" }, { status: 400 });
+      },
+    });
+    assert.doesNotMatch(stdout.text + logs.join("\n"), /mr_secret/);
+    assert.match(stdout.lines[0].error.message, /Bearer \[token\]/);
+    assert.ok(!logs.join("\n").includes("\u001b"));
+  });
+
   it("ignores blank and non-JSON lines, and refuses a URL that isn't one", async () => {
     const stdout = capture();
     const logs = /** @type {string[]} */ ([]);

@@ -26,8 +26,28 @@ export function tokenSafeUrl(/** @type {string} */ apiUrl) {
 }
 
 /**
+ * Whether a value can be an agent token: printable ASCII with no spaces, line breaks or other
+ * controls (what an HTTP header may carry). Anything else is refused before it's sent, so a fetch
+ * never fails with the token quoted in its message.
+ */
+export function tokenShapeOk(/** @type {string} */ token) {
+  return /^[\x21-\x7e]+$/.test(token);
+}
+
+/**
+ * A message with any token in it masked: the one in use, and whatever follows `Bearer` (a fetch
+ * that refuses a header quotes the value it refused). For text that reaches a terminal, a log or an
+ * AI client.
+ */
+export function redactToken(/** @type {string} */ text, /** @type {string | null | undefined} */ token) {
+  const masked = token ? text.split(token).join("[token]") : text;
+  return masked.replace(/Bearer\s+[^"']*/g, "Bearer [token]");
+}
+
+/**
  * A failed API call: the API's own error (`{ error, message, hint, docs }`), or a network failure
- * (`status` 0, `code` "network").
+ * (`status` 0, `code` "network"). `login` also uses it for an answer that says no (declined, or a
+ * code that ran out): the API was asked, so it's exit 1, not a usage mistake.
  */
 export class ApiError extends Error {
   /**
@@ -70,6 +90,9 @@ export function createClient(/** @type {ClientOptions} */ opts) {
   if (opts.token && !tokenSafeUrl(apiUrl)) {
     throw new Error(`Refusing to send a token over plain http to ${new URL(apiUrl).host}.`);
   }
+  if (opts.token && !tokenShapeOk(opts.token)) {
+    throw new Error("Refusing to send a token with spaces, line breaks or other characters a token never has.");
+  }
 
   /**
    * @param {string} method
@@ -97,7 +120,7 @@ export function createClient(/** @type {ClientOptions} */ opts) {
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
     } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = redactToken(err instanceof Error ? err.message : String(err), opts.token);
       throw new ApiError(0, null, `Couldn't reach ${new URL(apiUrl).host}: ${reason}`);
     }
     let text;
@@ -105,7 +128,7 @@ export function createClient(/** @type {ClientOptions} */ opts) {
       // The timeout covers the body too: a stalled answer is abandoned, not waited on forever.
       text = await res.text();
     } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = redactToken(err instanceof Error ? err.message : String(err), opts.token);
       throw new ApiError(0, null, `${new URL(apiUrl).host} stopped answering: ${reason}`);
     }
     /** @type {any} */

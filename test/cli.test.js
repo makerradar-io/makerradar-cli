@@ -37,6 +37,22 @@ describe("directory commands", () => {
     assert.match(r.stdout, /Evil\[2J\]8;;https:\/\/phish\.test\\Co/);
   });
 
+  it("strips control characters from every API value it prints: cursors, counts, statuses", async () => {
+    const evil = `${ESC}]8;;https://evil.test/${"\u0007"}x`;
+    const api = fakeApi({
+      "GET /products": () => ({ body: { data: [{ ...PRODUCT, totalUpvotes: evil }], nextCursor: evil } }),
+      "GET /categories": () => ({ body: { data: [{ name: "Dev", slug: "dev", productCount: evil }] } }),
+      "GET /launches/current": () => ({
+        body: { data: { week: "2026-W45", launches: [{ ...PRODUCT, upvoteCount: evil, commentCount: evil, tier: "free" }] } },
+      }),
+    });
+    for (const argv of [["search", "x"], ["categories"], ["launches"]]) {
+      const r = await run(argv, api);
+      assert.equal(r.code, 0, argv.join(" ") + r.stderr);
+      assert.ok(!r.stdout.includes(ESC) && !r.stdout.includes("\u0007"), argv.join(" "));
+    }
+  });
+
   it("--json prints the API's answer as is (control characters escaped by JSON)", async () => {
     const body = { data: [{ ...PRODUCT, name: `A${ESC}B` }], nextCursor: null };
     const api = fakeApi({ "GET /products": () => ({ body }) });
@@ -98,6 +114,8 @@ describe("directory commands", () => {
       checks: [
         { id: "title", status: "fail", label: "Title", detail: `No <title>${ESC}[2J.`, fix: "Add a title." },
         { id: "h1", status: "pass", label: "H1", detail: "One H1.", fix: null },
+        // A status the CLI doesn't know is printed as is, still cleaned.
+        { id: "odd", status: `odd${ESC}[31m`, label: "Odd", detail: "New.", fix: null },
       ],
       toolUrl: "https://makerradar.io/tools/seo-checker",
       listing: { listed: false, submitUrl: "https://makerradar.io/submit?url=acme.example" },
@@ -313,6 +331,10 @@ describe("errors", () => {
     const api = fakeApi({});
     for (const argv of [["frobnicate"], ["search", "--nope"], ["categories", "--limit", "3"], ["api", "FETCH", "/x"]]) {
       assert.equal((await run(argv, api)).code, 2, argv.join(" "));
+      // With --json, every one of them is JSON on stderr.
+      const machine = await run([...argv, "--json"], api);
+      assert.equal(machine.code, 2, argv.join(" "));
+      assert.equal(JSON.parse(machine.stderr).error, "usage", argv.join(" "));
     }
     assert.equal(api.calls.length, 0);
   });
@@ -397,9 +419,18 @@ describe("the account", () => {
     const config = await tempConfig();
     const declined = accountApi([{ status: "denied", message: "No" }]);
     const r = await run(["login"], { ...declined, config });
-    assert.equal(r.code, 2);
+    // The API was asked and said no: a refusal (exit 1), not a usage mistake.
+    assert.equal(r.code, 1);
     assert.match(r.stderr, /declined/);
     assert.equal((await run(["whoami"], { ...declined, config })).code, 2);
+    const machine = await run(["login", "--json"], accountApi([{ status: "denied", message: "No" }]));
+    assert.equal(machine.code, 1);
+    assert.equal(JSON.parse(machine.stderr.trim().split("\n").at(-1) ?? "").error, "denied");
+    // A code that runs out while waiting is exit 1 too.
+    const pending = Array.from({ length: 200 }, () => ({ status: "pending", message: "wait" }));
+    const expired = await run(["login", "--json"], accountApi(pending));
+    assert.equal(expired.code, 1);
+    assert.equal(JSON.parse(expired.stderr.trim().split("\n").at(-1) ?? "").error, "expired");
   });
 
   it("refuses an unknown scope before asking anyone", async () => {
@@ -507,7 +538,7 @@ describe("the account", () => {
     assert.match(r.stdout, /Connected as @dana/);
     // A refusal still ends it at once.
     const refused = accountApi([{ status: "denied", message: "No" }]);
-    assert.equal((await run(["login"], refused)).code, 2);
+    assert.equal((await run(["login"], refused)).code, 1);
   });
 
   it("writes the config atomically: nothing left beside it, still for its owner only", async () => {
@@ -517,6 +548,29 @@ describe("the account", () => {
     assert.deepEqual(await readdir(dirname(config)), ["config.json"]);
     if (process.platform !== "win32") assert.equal((await stat(config)).mode & 0o777, 0o600);
     assert.equal(JSON.parse(await readFile(config, "utf8")).tokens["https://api.makerradar.io/v1"].token, "mr_live_secret");
+  });
+
+  it("refuses a token a header can't carry without ever printing it, and calls nothing", async () => {
+    const api = accountApi();
+    const secret = "mr_SECRET1\nmr_SECRET2";
+    for (const [argv, env] of /** @type {const} */ ([
+      [["whoami"], { MAKERRADAR_TOKEN: secret }],
+      [["whoami", "--json"], { MAKERRADAR_TOKEN: secret }],
+      [["whoami", "--token", "mr_a b"], {}],
+      [["mcp", "serve", "--account"], { MAKERRADAR_TOKEN: "mr_… (from `makerradar login`)" }],
+    ])) {
+      const r = await run([...argv], { ...api, env });
+      assert.equal(r.code, 2, argv.join(" "));
+      assert.doesNotMatch(r.stderr + r.stdout, /SECRET|mr_a b|from `makerradar login`/, argv.join(" "));
+      assert.match(r.stderr, /isn't an agent token/);
+    }
+    assert.equal(api.calls.length, 0);
+    const config = await tempConfig();
+    await run(["login"], { ...accountApi([{ ...approved, token: "mr_bad\ttoken" }]), config });
+    const saved = await run(["whoami"], { ...api, config });
+    assert.equal(saved.code, 2);
+    assert.match(saved.stderr, /The token saved in .* isn't an agent token[\s\S]*makerradar login/);
+    assert.doesNotMatch(saved.stderr, /mr_bad/);
   });
 
   it("says how to sign in when an account command has no token", async () => {
@@ -541,6 +595,22 @@ describe("api", () => {
     const listed = await run(["api", "GET", "/products?q=notes"], api);
     assert.equal(JSON.parse(listed.stdout).q, "notes");
     assert.equal((await run(["api", "POST", "/drafts", "--data", "{oops"], api)).code, 2);
+  });
+
+  it("a --data file it can't read is a usage mistake (exit 2, JSON with --json), and calls nothing", async () => {
+    const api = fakeApi({});
+    const missing = `${await tempConfig()}.missing.json`;
+    const human = await run(["api", "POST", "/drafts", "--data", `@${missing}`], api);
+    assert.equal(human.code, 2);
+    assert.match(human.stderr, /Couldn't read --data file .*missing\.json \(ENOENT\)/);
+    assert.doesNotMatch(human.stderr, /\n {4}at /);
+    const machine = await run(["api", "POST", "/drafts", "--data", `@${missing}`, "--json"], api);
+    assert.equal(machine.code, 2);
+    const parsed = JSON.parse(machine.stderr);
+    assert.equal(parsed.error, "usage");
+    assert.equal(parsed.status, null);
+    assert.match(parsed.message, /ENOENT/);
+    assert.equal(api.calls.length, 0);
   });
 });
 

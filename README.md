@@ -173,9 +173,11 @@ Where a token goes:
 
 - `--json` prints exactly what the API answered (`{ "data": … }`, plus `nextCursor` on lists).
 - On failure, the error goes to stderr. With `--json` it's JSON:
-  `{"error":"not_found","status":404,"message":"…","hint":"…","docs":"…"}`.
-- Exit codes: `0` done · `1` the API refused, or couldn't be reached · `2` a usage mistake (unknown
-  command or option, missing argument). A usage mistake never calls the API.
+  `{"error":"not_found","status":404,"message":"…","hint":"…","docs":"…"}` — a usage mistake too,
+  as `{"error":"usage","status":null,…}`.
+- Exit codes: `0` done · `1` the API refused (a declined or expired `login` included), or couldn't
+  be reached · `2` a usage mistake (unknown command or option, missing argument, a `--data` file it
+  can't read, a token that isn't one). A usage mistake never calls the API.
 - Text from listings is written by makers. Human output strips terminal control characters and
   bidirectional overrides, so a listing can't recolour your terminal, move the cursor or fake a link.
   Treat it as unverified.
