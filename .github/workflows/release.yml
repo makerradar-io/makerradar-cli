@@ -14,17 +14,22 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# Least privilege: each job gets only what it needs (the npm job adds `id-token: write` for
+# provenance). Actions are pinned to commit SHAs and mcp-publisher to a release, so a moved tag or
+# a new upstream release never runs with the registry key unreviewed: bump them deliberately.
 permissions:
   contents: read
-  id-token: write # npm provenance
 
 jobs:
   npm:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm provenance
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
@@ -41,13 +46,17 @@ jobs:
     needs: [npm]
     if: ${{ !cancelled() && (needs.npm.result == 'success' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
-          go-version: stable
+          go-version: "1.26.x"
+      # A pinned release (the Go checksum database holds it to what was first published), never
+      # @latest: this binary is handed MCP_REGISTRY_PRIVATE_KEY two steps on.
       - name: Install mcp-publisher
-        run: go install github.com/modelcontextprotocol/registry/cmd/publisher@latest && mv "$(go env GOPATH)/bin/publisher" /usr/local/bin/mcp-publisher
+        run: go install github.com/modelcontextprotocol/registry/cmd/publisher@v1.8.7 && mv "$(go env GOPATH)/bin/publisher" /usr/local/bin/mcp-publisher
       - name: Wait until npm serves the package version server.json names
         run: |
           version="$(node -p "require('./server.json').packages.find(p => p.registryType === 'npm').version")"

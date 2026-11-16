@@ -175,7 +175,7 @@ function productLines(
 ) {
   const { s } = ctx;
   const head = rank === null ? "" : `${String(rank).padStart(2)}. `;
-  const meta = [`▲ ${p.totalUpvotes ?? p.upvoteCount ?? 0}`, pricingLabel(p.pricingModel)];
+  const meta = [`▲ ${clean(p.totalUpvotes ?? p.upvoteCount ?? 0)}`, pricingLabel(p.pricingModel)];
   ctx.out(`${head}${s.bold(clean(p.name))}  ${s.dim(meta.filter(Boolean).join(" · "))}`);
   const pad = " ".repeat(head.length);
   if (p.tagline) ctx.out(`${pad}${clean(p.tagline)}`);
@@ -191,7 +191,7 @@ export const DEFAULT_TOOL = "seo-checker";
 const STATUS_LABEL = { pass: "GOOD", warn: "IMPROVE", fail: "FIX" };
 
 function statusTag(/** @type {Context} */ ctx, /** @type {string} */ status) {
-  const label = STATUS_LABEL[/** @type {keyof typeof STATUS_LABEL} */ (status)] ?? status.toUpperCase();
+  const label = STATUS_LABEL[/** @type {keyof typeof STATUS_LABEL} */ (status)] ?? clean(status).toUpperCase();
   const paint = status === "pass" ? ctx.s.green : status === "warn" ? ctx.s.yellow : ctx.s.red;
   return paint(label.padEnd(7));
 }
@@ -276,7 +276,7 @@ export const COMMANDS = [
       });
       if (body.nextCursor) {
         ctx.out();
-        ctx.out(ctx.s.dim(`More: add --cursor ${body.nextCursor}`));
+        ctx.out(ctx.s.dim(`More: add --cursor ${clean(body.nextCursor)}`));
       }
     },
   },
@@ -303,7 +303,7 @@ export const COMMANDS = [
       const rows = [
         ["Website", clean(p.websiteUrl ?? `${p.domain} (link withheld while it's checked)`)],
         ["Pricing", pricingLabel(p.pricingModel)],
-        ["Upvotes", String(p.totalUpvotes)],
+        ["Upvotes", clean(p.totalUpvotes)],
         ["Rating", rating],
         ["Owner", p.claimed ? "claimed by its maker" : "not claimed yet"],
       ];
@@ -354,7 +354,7 @@ export const COMMANDS = [
       const rows = (body.data ?? []).map((/** @type {any} */ c) => [
         clean(c.name),
         ctx.s.dim(clean(c.slug)),
-        String(c.productCount),
+        clean(c.productCount),
       ]);
       ctx.out(table([[ctx.s.bold("Category"), ctx.s.bold("Slug"), ctx.s.bold("Products")], ...rows]));
     },
@@ -384,7 +384,7 @@ export const COMMANDS = [
       launches.forEach((/** @type {any} */ l, /** @type {number} */ i) => {
         ctx.out();
         const tier = tierLabel(l.tier);
-        const meta = [`▲ ${l.upvoteCount}`, `${l.commentCount} comment${l.commentCount === 1 ? "" : "s"}`, tier]
+        const meta = [`▲ ${clean(l.upvoteCount)}`, `${clean(l.commentCount)} comment${l.commentCount === 1 ? "" : "s"}`, tier]
           .filter(Boolean)
           .join(" · ");
         ctx.out(`${String(i + 1).padStart(2)}. ${ctx.s.bold(clean(l.name))}  ${ctx.s.dim(meta)}`);
@@ -619,7 +619,10 @@ export const COMMANDS = [
       const deadline = ctx.now().getTime() + (Number(started.expiresIn) || 900) * 1000;
       for (;;) {
         await ctx.sleep(interval * 1000);
-        if (ctx.now().getTime() > deadline) throw new UsageError("The code expired: run `makerradar login` again.", "login");
+        // Not a usage mistake: the API was asked, and the code it gave ran out (exit 1).
+        if (ctx.now().getTime() > deadline) {
+          throw new ApiError(0, { error: "expired", message: "The code expired: run `makerradar login` again." });
+        }
         let answer;
         try {
           answer = (await ctx.client.call("finishAgentConnect", { body: { deviceCode: started.deviceCode } })).data;
@@ -638,10 +641,12 @@ export const COMMANDS = [
         }
         if (answer.status === "pending") continue;
         if (answer.status !== "approved" || !answer.token) {
-          throw new UsageError(
-            answer.status === "denied" ? "You declined the connection: nothing was saved." : clean(answer.message),
-            "login",
-          );
+          // The API said no (declined, expired…): a refusal, exit 1 — the call was made.
+          throw new ApiError(200, {
+            error: typeof answer.status === "string" && answer.status ? answer.status : "login_failed",
+            message:
+              answer.status === "denied" ? "You declined the connection: nothing was saved." : clean(answer.message),
+          });
         }
         let handle = null;
         let dashboardUrl = null;
@@ -830,8 +835,18 @@ export const COMMANDS = [
       }
       let body;
       if (flags.data !== undefined) {
-        const raw =
-          flags.data === "-" ? await ctx.readStdin() : flags.data.startsWith("@") ? await ctx.readFile(flags.data.slice(1)) : flags.data;
+        let raw;
+        try {
+          raw =
+            flags.data === "-" ? await ctx.readStdin() : flags.data.startsWith("@") ? await ctx.readFile(flags.data.slice(1)) : flags.data;
+        } catch (e) {
+          // A missing or unreadable file is the caller's to fix (exit 2), and nothing was sent.
+          const why = /** @type {NodeJS.ErrnoException} */ (e)?.code ?? "unreadable";
+          throw new UsageError(
+            `Couldn't read --data ${flags.data === "-" ? "from stdin" : `file ${clean(flags.data.slice(1))}`} (${clean(why)}).`,
+            "api",
+          );
+        }
         try {
           body = JSON.parse(raw);
         } catch {
@@ -873,14 +888,16 @@ export function mcpSnippets(/** @type {string} */ publicUrl, /** @type {string} 
       text: json({ mcpServers: { makerradar: { serverUrl: publicUrl }, "makerradar-account": { serverUrl: accountUrl } } }),
     },
     stdio: {
-      title: "Any client that only starts a local command (stdio, via npx)",
+      // No `env` block: the account server uses the token `makerradar login` saved. A placeholder
+      // MAKERRADAR_TOKEN left as is would override that token (and isn't one).
+      title:
+        "Any client that only starts a local command (stdio, via npx; the account server uses the token `makerradar login` saved, or a MAKERRADAR_TOKEN you add to its env)",
       text: json({
         mcpServers: {
           makerradar: { command: "npx", args: ["-y", "makerradar", "mcp", "serve"] },
           "makerradar-account": {
             command: "npx",
             args: ["-y", "makerradar", "mcp", "serve", "--account"],
-            env: { MAKERRADAR_TOKEN: "mr_… (from `makerradar login`, or leave it to the saved one)" },
           },
         },
       }),

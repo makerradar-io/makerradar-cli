@@ -13,6 +13,9 @@
  * is kept for the session, and the negotiated `MCP-Protocol-Version` is echoed on later calls.
  */
 
+import { redactToken } from "./api.js";
+import { clean } from "./format.js";
+
 /** The protocol version the bridge asks for when it hasn't negotiated one yet. */
 export const DEFAULT_PROTOCOL_VERSION = "2025-06-18";
 
@@ -126,7 +129,9 @@ export async function runBridge(opts) {
     try {
       res = await doFetch(opts.url, { method: "POST", headers, body: text });
     } catch (e) {
-      const reason = e instanceof Error ? (e.cause instanceof Error ? e.cause.message : e.message) : String(e);
+      const raw = e instanceof Error ? (e.cause instanceof Error ? e.cause.message : e.message) : String(e);
+      // A fetch that refuses a header quotes it: the token never reaches the log or the AI client.
+      const reason = redactToken(raw, opts.token);
       fail(isRequest ? id : undefined, `Couldn't reach ${new URL(opts.url).host}: ${reason}`);
       continue;
     }
@@ -165,7 +170,9 @@ export async function runBridge(opts) {
 
   /** Answer a failed request with a JSON-RPC error (a notification's failure is only logged). */
   function fail(/** @type {unknown} */ id, /** @type {string} */ detail) {
-    opts.log(detail);
+    // The server's message is its own text: stripped of control characters before a terminal sees it
+    // (the JSON-RPC error below is JSON, which escapes them).
+    opts.log(clean(detail));
     if (id !== undefined) {
       emit(JSON.stringify({ jsonrpc: "2.0", id, error: { code: BRIDGE_ERROR, message: detail } }));
     }

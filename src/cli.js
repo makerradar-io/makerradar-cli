@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
-import { ApiError, createClient, DEFAULT_API_URL, tokenSafeUrl } from "./api.js";
+import { ApiError, createClient, DEFAULT_API_URL, tokenSafeUrl, tokenShapeOk } from "./api.js";
 import { COMMANDS, UsageError } from "./commands.js";
 import { configPath, envValue, savedToken } from "./config.js";
 import { clean, styles } from "./format.js";
@@ -123,17 +123,36 @@ export async function main(argv, io) {
   const err = (/** @type {string} */ line = "") => io.stderr.write(`${line}\n`);
   const s = styles(io.stdout, io.env);
   const es = styles(io.stderr, io.env);
+  /** Whether errors go to stderr as JSON (known for sure once the arguments parse). */
+  let json = argv.includes("--json");
+  /**
+   * A usage mistake: exit 2, and no call to the API. With `--json` it's JSON on stderr, shaped like
+   * an API error (`error: "usage"`, no HTTP status).
+   * @param {string} message
+   * @param {string | null} [hint]
+   */
+  const usage = (message, hint = null) => {
+    if (json) {
+      err(JSON.stringify({ error: "usage", status: null, message, hint, docs: DOCS_URL }));
+    } else {
+      err(`${es.red("Error:")} ${message}`);
+      if (hint) err(hint);
+    }
+    return 2;
+  };
 
   /** @type {{ values: Record<string, any>, positionals: string[] }} */
   let parsed;
   try {
     parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: true });
   } catch (e) {
-    err(`${es.red("Error:")} ${e instanceof Error ? e.message : String(e)}`);
-    err("Run `makerradar --help` for the commands and their options.");
-    return 2;
+    return usage(
+      clean(e instanceof Error ? e.message : String(e)),
+      "Run `makerradar --help` for the commands and their options.",
+    );
   }
   const { values: flags, positionals } = parsed;
+  json = Boolean(flags.json);
   if (flags.version) {
     out(VERSION);
     return 0;
@@ -146,9 +165,7 @@ export async function main(argv, io) {
   }
   const command = COMMANDS.find((c) => c.name === name);
   if (!command) {
-    err(`${es.red("Error:")} unknown command "${clean(name)}".`);
-    err("Run `makerradar --help` for the commands.");
-    return 2;
+    return usage(`unknown command "${clean(name)}".`, "Run `makerradar --help` for the commands.");
   }
   if (flags.help) {
     out(commandHelp(command, s));
@@ -156,9 +173,7 @@ export async function main(argv, io) {
   }
   const stray = Object.keys(flags).filter((f) => !GLOBAL_OPTIONS.has(f) && !command.options?.includes(f));
   if (stray.length) {
-    err(`${es.red("Error:")} ${command.name} doesn't take --${stray.join(", --")}.`);
-    err(`Run \`makerradar ${command.name} --help\`.`);
-    return 2;
+    return usage(`${command.name} doesn't take --${stray.join(", --")}.`, `Run \`makerradar ${command.name} --help\`.`);
   }
 
   // The API the environment names: MAKERRADAR_TOKEN belongs to it, and only to it.
@@ -171,8 +186,7 @@ export async function main(argv, io) {
     try {
       new URL(url);
     } catch {
-      err(`${es.red("Error:")} ${label} isn't a URL: ${clean(url)}`);
-      return 2;
+      return usage(`${label} isn't a URL: ${clean(url)}`);
     }
   }
   const origin = (/** @type {string} */ url) => new URL(url).origin;
@@ -201,6 +215,21 @@ export async function main(argv, io) {
       token = saved.token;
       tokenSource = "saved";
     }
+  }
+  // A token a header can't carry (a line break, a space, a placeholder pasted as is) is refused here,
+  // naming where it came from but never echoing it: a failed fetch would quote it in full.
+  if (token && !tokenShapeOk(token)) {
+    const where = {
+      flag: "--token",
+      env: "MAKERRADAR_TOKEN",
+      saved: `The token saved in ${configFile}`,
+    }[/** @type {"flag" | "env" | "saved"} */ (tokenSource)];
+    return usage(
+      `${where} isn't an agent token: it has spaces, line breaks or other characters a token never has.`,
+      tokenSource === "saved"
+        ? "Run `makerradar login` again."
+        : `Give the mr_… token itself${tokenSource === "env" ? ", or unset it to use the one `makerradar login` saved" : ""}.`,
+    );
   }
   if (token && !tokenSafeUrl(apiUrl)) {
     tokenNote = `Not sending your token over plain http to ${new URL(apiUrl).host}: use an https API URL (plain http is only for localhost).`;
@@ -235,10 +264,7 @@ export async function main(argv, io) {
     await command.run(ctx, args, flags);
     return 0;
   } catch (e) {
-    if (e instanceof UsageError) {
-      err(`${es.red("Error:")} ${e.message}`);
-      return 2;
-    }
+    if (e instanceof UsageError) return usage(e.message);
     if (e instanceof ApiError) {
       if (ctx.json) {
         err(JSON.stringify({ error: e.code, status: e.status, message: e.message, hint: e.hint, docs: e.docs }));
