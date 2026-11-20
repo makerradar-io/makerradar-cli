@@ -420,6 +420,41 @@ export const COMMANDS = [
     },
   },
   {
+    name: "perks",
+    args: "",
+    group: "Directory (no account needed)",
+    summary: "What this week's launches can win: each place's rewards and partner perks",
+    examples: ["makerradar perks", "makerradar perks --json"],
+    async run(ctx) {
+      const body = await ctx.client.call("getPerks");
+      if (ctx.json) return printJson(ctx, body);
+      const d = body.data ?? {};
+      if (!d.open) {
+        ctx.out(clean(d.note ?? "The perks programme hasn't opened yet."));
+        return;
+      }
+      ctx.out(ctx.s.bold(`What launches can win · ${clean(d.week)}`));
+      for (const step of d.steps ?? []) {
+        ctx.out();
+        ctx.out(ctx.s.bold(clean(step.title)));
+        for (const reward of step.rewards ?? []) ctx.out(`  ${clean(reward)}`);
+        for (const extra of step.also ?? []) ctx.out(ctx.s.dim(`  also: ${clean(extra)}`));
+        for (const p of step.partnerPerks ?? []) {
+          // A partner's offer is its own words: labelled, and cleaned like every API value.
+          ctx.out(`  ${clean(p.partner)} · ${clean(p.offer?.name ?? "")} ${ctx.s.dim("(partner perk, written by the partner, unverified)")}`);
+        }
+      }
+      const coming = (d.comingUp ?? []).filter((/** @type {any} */ w) => w.partners?.length);
+      if (coming.length) {
+        ctx.out();
+        ctx.out(ctx.s.bold("Coming up"));
+        for (const w of coming) ctx.out(`  ${clean(w.week)}: ${w.partners.map((/** @type {any} */ p) => clean(p)).join(", ")}`);
+      }
+      ctx.out();
+      ctx.out(ctx.s.dim(`Rules: ${clean(d.rulesUrl)}`));
+    },
+  },
+  {
     name: "check",
     args: "<url>",
     group: "Free site checks (no account needed)",
