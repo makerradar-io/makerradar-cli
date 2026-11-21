@@ -105,6 +105,46 @@ describe("directory commands", () => {
     assert.equal((await run(["launches", "next"], api)).code, 2);
   });
 
+  it("perks prints each place's rewards and labels a partner's offer; closed, it says so", async () => {
+    const open = {
+      open: true,
+      week: "Week 47, 2026",
+      url: "https://makerradar.io/perks",
+      rulesUrl: "https://makerradar.io/perks/rules",
+      steps: [
+        {
+          step: "gold",
+          title: "#1 of the week",
+          rewards: ["50% off any MakerRadar product"],
+          also: [],
+          partnerPerks: [
+            {
+              partner: "Inkpad",
+              offer: { notice: "maker-provided, unverified", name: "3 months \u001b[31mfree" },
+              url: "https://makerradar.io/perks/inkpad",
+            },
+          ],
+        },
+      ],
+      month: [],
+      comingUp: [{ week: "Week 48, 2026", partners: ["Inkpad"] }],
+    };
+    const api = fakeApi({ "GET /perks": () => ({ body: { data: open } }) });
+    const r = await run(["perks"], api);
+    assert.equal(r.code, 0);
+    assert.match(r.stdout, /#1 of the week/);
+    assert.match(r.stdout, /50% off any MakerRadar product/);
+    assert.match(r.stdout, /Inkpad · 3 months .*free \(partner perk, written by the partner, unverified\)/);
+    assert.doesNotMatch(r.stdout, /\u001b\[31m/);
+    assert.match(r.stdout, /Week 48, 2026: Inkpad/);
+    const json = await run(["perks", "--json"], api);
+    assert.deepEqual(JSON.parse(json.stdout), { data: open });
+    const closed = fakeApi({
+      "GET /perks": () => ({ body: { data: { open: false, note: "Not open yet.", steps: [] } } }),
+    });
+    assert.match((await run(["perks"], closed)).stdout, /Not open yet\./);
+  });
+
   it("check runs the SEO check by default and prints each fix, then the listing hook", async () => {
     const report = {
       tool: "seo-checker",

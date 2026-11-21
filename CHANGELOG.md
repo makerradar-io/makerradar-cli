@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `makerradar perks`: what this week's launches can win — each place's rewards and the partner perks
+  booked into it (a partner's offer labelled as its own words, unverified), and who's booked next.
+  Calls `getPerks` (`GET /v1/perks`); release it once the API serves that operation, since the
+  contract test checks the live document.
 - A token with spaces, line breaks or other characters a token never has (from `--token`,
   `MAKERRADAR_TOKEN` or the saved config) is refused up front (exit 2), naming where it came from but
   never echoing it; a network error never quotes the token either, in the CLI or `mcp serve`.

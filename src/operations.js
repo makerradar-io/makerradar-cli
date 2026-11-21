@@ -14,6 +14,7 @@ export const OPERATIONS = /** @type {const} */ ({
   listCurrentLaunches: { method: "GET", path: "/launches/current" },
   getLaunchWeek: { method: "GET", path: "/launches/{week}" },
   getPricing: { method: "GET", path: "/pricing" },
+  getPerks: { method: "GET", path: "/perks" },
   createDraft: { method: "POST", path: "/drafts" },
   startAgentConnect: { method: "POST", path: "/agent/connect" },
   finishAgentConnect: { method: "POST", path: "/agent/token" },

@@ -46,6 +46,7 @@ Or run it without installing: `npx makerradar <command>`.
 | `makerradar categories` | Every category, with how many products it has |
 | `makerradar launches [week]` | This week's launch board, or another week's: `45`, `2026-W45` or `week-45-2026` |
 | `makerradar pricing` | What's on sale (Premium launch, featured weeks, ads…), with prices |
+| `makerradar perks` | What this week's launches can win: each place's rewards and partner perks |
 | `makerradar draft <website>` | Draft a listing for your product. You get a link to review and submit it: nothing is public until you do, and every listing is reviewed first |
 
 ### Free site checks (no account needed)
@@ -128,7 +129,7 @@ to serve `/mcp/account` with your token so the assistant can manage your listing
 
 Tools on the public server: `search_products`, `get_product`, `get_alternatives`,
 `compare_products`, `list_categories`, `list_current_launches`, `get_launch_week`, `top_products`,
-`draft_listing`, `get_pricing`, `connect_account` / `connect_account_finish`, and the free site
+`draft_listing`, `get_pricing`, `get_perks`, `connect_account` / `connect_account_finish`, and the free site
 checks — `check_page_seo`, `check_ai_visibility`, `check_site_security`, `check_email_dns`,
 `lookup_domain`, `check_tls`, `check_hosting`, `detect_tech` (any public website; the same checks as
 `https://makerradar.io/tools`). On the account server,
