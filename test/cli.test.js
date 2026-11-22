@@ -240,7 +240,112 @@ describe("directory commands", () => {
     assert.match(r.stdout, /domain-rating-checker\s+Domain rating checker\s+needs login/);
     assert.match(r.stdout, /keyword-generator\s+Keyword generator\s+makerradar keywords/);
     assert.match(r.stdout, /ai-robots-txt-generator\s+AI robots\.txt generator\s+makerradar robots/);
-    assert.match(r.stdout, /launch-directory-planner\s+Directory planner\s+on the site or the API/);
+    assert.match(r.stdout, /launch-directory-planner\s+Directory planner\s+makerradar run/);
+  });
+
+  it("run sends field=value to a generator and keeps stdout to what it built", async () => {
+    const answer = {
+      tool: "utm-builder",
+      url: "https://acme.example/?utm_source=newsletter",
+      params: [{ param: "utm_source", value: "newsletter" }],
+      notes: [`Add a medium${ESC}[2J.`],
+      toolUrl: "https://makerradar.io/tools/utm-builder",
+    };
+    const api = fakeApi({ "POST /tools/utm-builder": () => ({ body: { data: answer } }) });
+    const r = await run(["run", "utm-builder", "url=https://acme.example/?a=b", "source=newsletter", "keepCase=true"], api);
+    assert.equal(r.code, 0);
+    assert.deepEqual(api.calls[0]?.body, { url: "https://acme.example/?a=b", source: "newsletter", keepCase: true });
+    assert.equal(r.stdout.trim(), "https://acme.example/?utm_source=newsletter");
+    assert.match(r.stderr, /Add a medium/);
+    assert.match(r.stderr, /makerradar\.io\/tools\/utm-builder/);
+    assert.ok(!r.stderr.includes(ESC));
+
+    const json = await run(["run", "utm-builder", "source=x", "--json"], api);
+    assert.deepEqual(JSON.parse(json.stdout), { data: answer });
+  });
+
+  it("run prints a calculator's answer, its table and its remarks", async () => {
+    const api = fakeApi({
+      "POST /tools/payment-fee-calculator": () => ({
+        body: {
+          data: {
+            tool: "payment-fee-calculator",
+            headline: "You keep $27.86 of $29",
+            summary: "Per sale.",
+            rows: [{ label: "Fee", value: "$1.14" }],
+            table: { columns: ["Provider", "Fee"], rows: [["Stripe", "$1.14"], [`Paddle${ESC}[31m`, "$1.95"]] },
+            notes: [{ level: "improve", message: "Rates change." }],
+          },
+        },
+      }),
+    });
+    const r = await run(["run", "payment-fee-calculator", "--data", '{"price":29}', "sales=10", "tag=a", "tag=b"], api);
+    assert.equal(r.code, 0);
+    assert.deepEqual(api.calls[0]?.body, { price: 29, sales: "10", tag: ["a", "b"] });
+    assert.match(r.stdout, /You keep \$27\.86 of \$29\nPer sale\./);
+    assert.match(r.stdout, /Fee\s+\$1\.14/);
+    assert.match(r.stdout, /Provider\s+Fee\nStripe\s+\$1\.14\nPaddle\[31m\s+\$1\.95/);
+    assert.match(r.stderr, /IMPROVE Rates change\./);
+    assert.ok(!r.stdout.includes(ESC));
+  });
+
+  it("run prints the launch weeks, a site report, and JSON for a shape it doesn't know", async () => {
+    const api = fakeApi({
+      "POST /tools/best-week-to-launch": () => ({
+        body: { data: { weeks: [{ name: "Week 48 · 23–29 Nov", launches: 3, level: "quiet", quietest: true }] } },
+      }),
+      "POST /tools/seo-checker": () => ({ body: { data: { url: "https://acme.example/", score: 90, checks: [] } } }),
+      "POST /tools/launch-checklist": () => ({ body: { data: { markdown: "# Launch" } } }),
+    });
+    const weeks = await run(["run", "best-week-to-launch"], api);
+    assert.deepEqual(api.calls[0]?.body, {});
+    assert.match(weeks.stdout, /Week 48 · 23–29 Nov\s+3 booked\s+quiet · quietest/);
+    const report = await run(["run", "seo-checker", "url=acme.example"], api);
+    assert.match(report.stdout, /90\/100/);
+    const other = await run(["run", "launch-checklist"], api);
+    assert.deepEqual(JSON.parse(other.stdout), { markdown: "# Launch" });
+  });
+
+  it("run refuses a bad slug, field or --data before calling anything, and passes a refusal on", async () => {
+    const api = fakeApi({
+      "POST /tools/utm-builder": () => ({
+        status: 400,
+        body: { error: "invalid", message: "Give the page the link goes to.", hint: "", docs: "" },
+      }),
+    });
+    for (const argv of [
+      ["run"],
+      ["run", "../x"],
+      ["run", "keyword-generator"],
+      ["run", "utm-builder", "nofield"],
+      ["run", "utm-builder", "bad key=1"],
+      ["run", "utm-builder", "--data", "[1]"],
+      ["run", "utm-builder", "--data", "{oops"],
+    ]) {
+      const r = await run(argv, api);
+      assert.equal(r.code, 2, argv.join(" "));
+    }
+    assert.equal(api.calls.length, 0);
+    const refused = await run(["run", "utm-builder"], api);
+    assert.equal(refused.code, 1);
+    assert.match(refused.stderr, /Give the page the link goes to/);
+  });
+
+  it("check prints a report's table", async () => {
+    const api = fakeApi({
+      "POST /tools/heading-checker": () => ({
+        body: {
+          data: {
+            url: "https://acme.example/",
+            score: 80,
+            checks: [],
+            table: { title: "Headings", columns: ["Level", "Text"], rows: [["H1", "Acme"], ["H2", "Pricing"]] },
+          },
+        },
+      }),
+    });
+    const r = await run(["check", "acme.example", "--tool", "heading-checker"], api);
+    assert.match(r.stdout, /Headings\nLevel\s+Text\nH1\s+Acme\nH2\s+Pricing/);
   });
 
   it("keywords sends the words as the seed and prints each group", async () => {
