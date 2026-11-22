@@ -227,11 +227,140 @@ function printReport(/** @type {Context} */ ctx, /** @type {any} */ r) {
     ctx.out(`        ${clean(c.detail)}`);
     if (c.fix) ctx.out(`        ${s.dim("Fix:")} ${clean(c.fix)}`);
   }
+  printGrid(ctx, r.table);
   if (r.toolUrl) {
     ctx.out();
     ctx.out(s.dim(`The same check on the web: ${clean(r.toolUrl)}`));
   }
   listingLine(ctx, r.listing);
+}
+
+/** A tool's table (what each row is, then the rows), every cell cleaned. */
+function printGrid(/** @type {Context} */ ctx, /** @type {any} */ grid) {
+  const rows = Array.isArray(grid?.rows) ? grid.rows.filter(Array.isArray) : [];
+  if (rows.length === 0) return;
+  const line = (/** @type {unknown[]} */ cells) => cells.map((c) => clean(c));
+  ctx.out();
+  if (grid.title) ctx.out(ctx.s.bold(clean(grid.title)));
+  const columns = Array.isArray(grid.columns) ? [line(grid.columns)] : [];
+  const [head, ...body] = table([...columns, ...rows.map(line)]).split("\n");
+  ctx.out(columns.length ? ctx.s.dim(head) : head);
+  for (const row of body) ctx.out(row);
+}
+
+/** Text a tool wrote to be pasted somewhere (a tag, a file, an SVG): printed whole, line by line. */
+function printBlock(/** @type {Context} */ ctx, /** @type {unknown} */ text) {
+  for (const line of clean(text, { multiline: true }).replace(/\n+$/, "").split("\n")) ctx.out(line);
+}
+
+/** The fields of a generator's answer that are the thing it built, in the order they print. */
+const BUILT_FIELDS = ["url", "html", "script", "tags", "sitemap", "svg"];
+
+/**
+ * `makerradar run`'s body: `--data` (a JSON object) first, then each `field=value`, which wins.
+ * A field named twice is a list; `true` / `false` are the switches. Numbers stay as typed: the
+ * API reads them. A mistake here is exit 2 and nothing is sent.
+ */
+export function toolBody(/** @type {string[]} */ pairs, /** @type {unknown} */ data) {
+  if (data !== undefined && (data === null || typeof data !== "object" || Array.isArray(data))) {
+    throw new UsageError("--data takes a JSON object, like '{\"title\":\"Acme\"}'.", "run");
+  }
+  /** @type {Record<string, unknown>} */
+  const body = { .../** @type {Record<string, unknown>} */ (data ?? {}) };
+  const seen = new Set();
+  for (const pair of pairs) {
+    const at = pair.indexOf("=");
+    const key = at > 0 ? pair.slice(0, at).trim() : "";
+    if (!/^[A-Za-z][A-Za-z0-9]*$/.test(key)) {
+      throw new UsageError(`Give each field as name=value (got "${clean(pair)}").`, "run");
+    }
+    const raw = pair.slice(at + 1);
+    const value = raw === "true" ? true : raw === "false" ? false : raw;
+    body[key] = seen.has(key) ? [.../** @type {unknown[]} */ ([body[key]].flat()), value] : value;
+    seen.add(key);
+  }
+  return body;
+}
+
+/**
+ * A generator's or calculator's answer in a terminal; false when it had nothing this knows. What
+ * it built goes to stdout; its labels and remarks to stderr, so `> file` keeps only the result.
+ */
+function printAnswer(/** @type {Context} */ ctx, /** @type {any} */ d) {
+  const { s } = ctx;
+  let printed = false;
+  const gap = () => {
+    if (printed) ctx.out();
+    printed = true;
+  };
+  if (d.headline) {
+    gap();
+    ctx.out(s.bold(clean(d.headline)));
+    if (d.summary) ctx.out(clean(d.summary));
+  }
+  const rows = (Array.isArray(d.rows) ? d.rows : []).map((/** @type {any} */ r) => [
+    clean(r?.label),
+    clean(r?.value),
+  ]);
+  if (rows.length) {
+    gap();
+    ctx.out(table(rows));
+  }
+  if (Array.isArray(d.weeks) && d.weeks.length) {
+    gap();
+    ctx.out(
+      table(
+        d.weeks.map((/** @type {any} */ w) => [
+          clean(w?.name),
+          `${clean(w?.launches)} booked`,
+          clean(w?.level) + (w?.quietest ? " · quietest" : ""),
+        ]),
+      ),
+    );
+  }
+  if (Array.isArray(d.table?.rows) && d.table.rows.length) {
+    printGrid(ctx, d.table);
+    printed = true;
+  }
+  for (const o of Array.isArray(d.outputs) ? d.outputs : []) {
+    gap();
+    ctx.err(s.dim(clean(o?.label)));
+    printBlock(ctx, o?.code);
+  }
+  for (const field of BUILT_FIELDS) {
+    if (typeof d[field] !== "string" || !d[field]) continue;
+    gap();
+    ctx.err(s.dim(field));
+    printBlock(ctx, d[field]);
+  }
+  if (!printed) return false;
+  for (const n of Array.isArray(d.notes) ? d.notes : []) {
+    const level = typeof n === "object" && n ? clean(n.level) : "";
+    const tag = level === "fix" ? s.red("FIX     ") : level === "improve" ? s.yellow("IMPROVE ") : "";
+    ctx.err(`${tag}${clean(typeof n === "object" && n ? n.message : n)}`);
+  }
+  if (d.toolUrl) ctx.err(s.dim(`The same tool on the web: ${clean(d.toolUrl)}`));
+  return true;
+}
+
+/** `--data`: JSON as typed, from `@file` or from stdin (`-`). Unreadable or not JSON is exit 2. */
+async function readJsonFlag(/** @type {Context} */ ctx, /** @type {string} */ data, /** @type {string} */ command) {
+  let raw;
+  try {
+    raw = data === "-" ? await ctx.readStdin() : data.startsWith("@") ? await ctx.readFile(data.slice(1)) : data;
+  } catch (e) {
+    // A missing or unreadable file is the caller's to fix (exit 2), and nothing was sent.
+    const why = /** @type {NodeJS.ErrnoException} */ (e)?.code ?? "unreadable";
+    throw new UsageError(
+      `Couldn't read --data ${data === "-" ? "from stdin" : `file ${clean(data.slice(1))}`} (${clean(why)}).`,
+      command,
+    );
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new UsageError("--data isn't valid JSON.", command);
+  }
 }
 
 /** @type {Command[]} */
@@ -504,12 +633,50 @@ export const COMMANDS = [
             : t.input === "seed"
               ? "makerradar keywords"
               : t.input === "options" || t.input === "none"
-                ? "on the site or the API"
+                ? "makerradar run"
                 : "",
       ]);
       ctx.out(table(rows));
       ctx.out();
-      ctx.out(ctx.s.dim("Run one: makerradar check <url> --tool <slug>"));
+      ctx.out(ctx.s.dim("Run one: makerradar check <url> --tool <slug>, or makerradar run <slug> field=value"));
+    },
+  },
+  {
+    name: "run",
+    args: "<tool> [field=value …]",
+    group: "Free site checks (no account needed)",
+    summary: "Run a generator or calculator (UTM links, meta tags, runway, MRR, slugs …)",
+    options: ["data"],
+    examples: [
+      "makerradar run utm-builder url=https://acme.com source=newsletter medium=email campaign=launch",
+      "makerradar run runway-calculator cash=120000 revenue=4000 expenses=14000",
+      'makerradar run meta-tag-generator title="Acme: invoices in one click" url=https://acme.com > head.html',
+      "makerradar run word-counter --data @post.json",
+      "makerradar run best-week-to-launch --json",
+    ],
+    details:
+      "For the tools that answer from what you give them and fetch nothing: `makerradar tools` marks them `makerradar run`, and each tool's page (its `url` in `makerradar tools --json`) shows its fields with a working example. Give fields as name=value (a name given twice is a list), or the whole body as JSON with --data (JSON, @file or - for stdin) when a field is a list of objects or a long text. What the tool built goes to stdout; what to fix or improve goes to stderr. Nothing is stored.",
+    async run(ctx, args, flags) {
+      const tool = (args[0] ?? "").trim().toLowerCase();
+      if (!/^[a-z0-9][a-z0-9-]*$/.test(tool)) {
+        throw new UsageError("Name a tool by its slug: `makerradar tools` lists them.", "run");
+      }
+      if (tool === "keyword-generator") {
+        throw new UsageError("For keyword ideas, run `makerradar keywords <a few words>`.", "run");
+      }
+      if (tool === AI_ROBOTS_TOOL) {
+        throw new UsageError("To write robots.txt rules for AI crawlers, run `makerradar robots`.", "run");
+      }
+      const data = flags.data === undefined ? undefined : await readJsonFlag(ctx, flags.data, "run");
+      const body = await ctx.client.call("runTool", {
+        params: { tool },
+        body: toolBody(args.slice(1), data),
+      });
+      if (ctx.json) return printJson(ctx, body);
+      const d = body.data ?? {};
+      // A tool that reads a site answers a report; anything else this doesn't know prints as JSON.
+      if (Array.isArray(d.checks)) return printReport(ctx, d);
+      if (!printAnswer(ctx, d)) printBlock(ctx, JSON.stringify(d, null, 2));
     },
   },
   {
@@ -868,26 +1035,7 @@ export const COMMANDS = [
       if (!["GET", "POST", "PUT", "PATCH", "DELETE"].includes(method) || !path.startsWith("/")) {
         throw new UsageError("Usage: makerradar api <GET|POST|PUT|PATCH|DELETE> </path?query> [--data JSON|@file|-]", "api");
       }
-      let body;
-      if (flags.data !== undefined) {
-        let raw;
-        try {
-          raw =
-            flags.data === "-" ? await ctx.readStdin() : flags.data.startsWith("@") ? await ctx.readFile(flags.data.slice(1)) : flags.data;
-        } catch (e) {
-          // A missing or unreadable file is the caller's to fix (exit 2), and nothing was sent.
-          const why = /** @type {NodeJS.ErrnoException} */ (e)?.code ?? "unreadable";
-          throw new UsageError(
-            `Couldn't read --data ${flags.data === "-" ? "from stdin" : `file ${clean(flags.data.slice(1))}`} (${clean(why)}).`,
-            "api",
-          );
-        }
-        try {
-          body = JSON.parse(raw);
-        } catch {
-          throw new UsageError("--data isn't valid JSON.", "api");
-        }
-      }
+      const body = flags.data === undefined ? undefined : await readJsonFlag(ctx, flags.data, "api");
       printJson(ctx, await ctx.client.request(method, path, body));
     },
   },

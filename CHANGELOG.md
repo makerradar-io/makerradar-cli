@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- `makerradar run <tool> [field=value …]`: the generators and calculators (`POST /v1/tools/{tool}`,
+  the tools `makerradar tools` marks `makerradar run`): UTM links, meta tags, schema markup,
+  hreflang, Open Graph image, favicon, slugs, word counts, keyword density, headlines, security.txt,
+  the launch timeline, the quietest launch weeks and the founder calculators. Fields as
+  `name=value` (a name given twice is a list; `true` / `false` are switches) or the body as JSON
+  with `--data` (JSON, `@file`, `-`). What the tool built goes to stdout, its labels and remarks to
+  stderr. A bad slug, field or `--data` is exit 2 without a call. Release it once the API serves
+  those tools.
+- `makerradar check` prints a report's table (the headings a page has, each link's rel, each
+  response header), so the new page audits read whole in a terminal.
 - `makerradar perks`: what this week's launches can win — each place's rewards and the partner perks
   booked into it (a partner's offer labelled as its own words, unverified), and who's booked next.
   Calls `getPerks` (`GET /v1/perks`); release it once the API serves that operation, since the
