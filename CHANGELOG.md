@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
 - `makerradar run <tool> [field=value …]`: the generators and calculators (`POST /v1/tools/{tool}`,
   the tools `makerradar tools` marks `makerradar run`): UTM links, meta tags, schema markup,
@@ -28,6 +28,8 @@
   included, and `mcp serve` strips control characters from the server's messages it logs.
 - Release workflow: actions pinned to commit SHAs, `mcp-publisher` pinned to a release (never
   `@latest`), and `id-token: write` only on the npm job.
+
+## 0.4.0
 
 - `makerradar robots`: robots.txt rules for AI crawlers from the site's AI crawler robots.txt
   generator (`POST /v1/tools/ai-robots-txt-generator`): a preset (`allow-all`, `block-training`,
